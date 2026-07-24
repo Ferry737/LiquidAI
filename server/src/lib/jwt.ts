@@ -49,11 +49,21 @@ export async function verifySessionToken(
 /** The cookie name used for the session JWT. */
 export const SESSION_COOKIE_NAME = COOKIE_NAME;
 
-/** Cookie attributes for a secure, httpOnly, SameSite=Strict session cookie. */
+/**
+ * Cookie attributes for the session JWT.
+ *
+ * In production the frontend (Vercel) and API (Render) live on different
+ * origins, so the cookie MUST be `sameSite: "none"` + `secure` to cross the
+ * CORS boundary (credentials: "include" is already set on every fetch).
+ * On localhost both run on the same origin, where "strict" works and avoids
+ * sending cross-site cookies in dev.
+ */
+const isProd = process.env.NODE_ENV === "production";
 export const SESSION_COOKIE_OPTIONS = {
   httpOnly: true,
-  secure: process.env.NODE_ENV === "production",
-  sameSite: "strict" as const,
+  secure: isProd,
+  // "none" REQUIRES secure=true; only safe to set in production.
+  sameSite: (isProd ? "none" : "strict") as "none" | "strict",
   path: "/",
   maxAge: config.JWT_TTL_SEC,
 } as const;

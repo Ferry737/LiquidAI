@@ -1,0 +1,78 @@
+# render.yaml — LiquidAI free-tier deploy (Vercel split: API/worker here, frontend on Vercel)
+# Docs: https://render.com/docs/blueprint-spec
+#
+# This Blueprint creates THREE services. The DATABASE_URL key is injected from
+# the neon-postgres service; set the remaining secrets in the Render dashboard
+# (they are deliberately NOT committed).
+
+services:
+  # ── Fastify API (Web Service) ──────────────────────────────────────────
+  - type: web
+    name: liquidai-api
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    region: oregon
+    plan: free
+    healthCheckPath: /health
+    envVars:
+      - key: SERVICE_TYPE
+        value: api
+      - key: PORT
+        value: "4000"
+      - key: NODE_ENV
+        value: production
+      - key: FRONTEND_ORIGIN
+        sync: false          # set in dashboard to your Vercel URL, e.g. https://liquidai.vercel.app
+      - key: DATABASE_URL
+        fromDatabase:
+          name: liquidai-db
+          property: connectionString
+      - key: JWT_SECRET
+        sync: false          # REQUIRED for SIWE auth — generate: openssl rand -hex 32
+      - key: SUBGRAPH_URL
+        value: https://api.studio.thegraph.com/query/uniswap/uniswap-v3-sepolia/version/latest
+      - key: DEFILLAMA_BASE
+        value: https://api.llama.fi
+      - key: DEFILLAMA_YIELDS_BASE
+        value: https://yields.llama.fi
+      - key: SEPOLIA_RPC_URL
+        value: https://rpc.sepolia.org
+      - key: TELEGRAM_BOT_TOKEN
+        sync: false          # optional — leave empty to disable alerts
+
+  # ── Strategy Worker (Background Worker) ────────────────────────────────
+  - type: worker
+    name: liquidai-worker
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    region: oregon
+    plan: free
+    envVars:
+      - key: SERVICE_TYPE
+        value: worker
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        fromDatabase:
+          name: liquidai-db
+          property: connectionString
+      - key: JWT_SECRET
+        sync: false
+      - key: SEPOLIA_RPC_URL
+        value: https://rpc.sepolia.org
+      - key: SEPOLIA_RPC
+        value: https://rpc.sepolia.org
+      - key: WORKER_DRY_RUN
+        value: "true"        # safe default — flip to "false" to execute on-chain (mainnet NOT supported)
+      - key: WORKER_PRIVATE_KEY
+        sync: false          # Sepolia testnet key ONLY — never mainnet funds
+      - key: TELEGRAM_BOT_TOKEN
+        sync: false
+
+databases:
+  - name: liquidai-db
+    databaseName: liquidai
+    user: liquidai
+    plan: free              # Neon-free Postgres on Render's free tier (90-day expiry — see DEPLOYMENT.md)
+    region: oregon
+    postgresMajorVersion: "16"

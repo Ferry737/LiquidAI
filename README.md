@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="https://img.shields.io/badge/LiquidAI-1.4-00d4ff?style=for-the-badge&logo=ethereum&logoColor=white" alt="LiquidAI 1.4" />
+  <img src="https://img.shields.io/badge/LiquidAI-1.5-00d4ff?style=for-the-badge&logo=ethereum&logoColor=white" alt="LiquidAI 1.5" />
   <img src="https://img.shields.io/badge/Testnet-Ethereum%20Sepolia-627eea?style=for-the-badge&logo=ethereum&logoColor=white" alt="Sepolia" />
   <img src="https://img.shields.io/badge/Uniswap-v3-FF007A?style=for-the-badge&logo=uniswap&logoColor=white" alt="Uniswap v3" />
   <img src="https://img.shields.io/badge/License-MIT-8a2be2?style=for-the-badge" alt="MIT" />
