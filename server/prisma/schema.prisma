@@ -1,0 +1,97 @@
+// server/prisma/schema.prisma
+// LiquidAI persistence layer — Postgres via Prisma.
+// Four models: Position, PositionSnapshot, StrategyConfig, StrategyAction.
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../node_modules/.prisma/client"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Position {
+  id         String   @id @default(cuid())
+  chainId    Int
+  tokenId    String
+  owner      String
+  pool       String
+  token0     String
+  token1     String
+  feeTier    Int
+  tickLower  Int
+  tickUpper  Int
+  createdAt  DateTime @default(now())
+  closedAt   DateTime?
+
+  snapshots      PositionSnapshot[]
+  strategyConfig StrategyConfig?
+  actions        StrategyAction[]
+
+  @@unique([chainId, tokenId])
+  @@index([owner])
+  @@map("positions")
+}
+
+model PositionSnapshot {
+  id               String   @id @default(cuid())
+  positionId       String
+  ts               DateTime @default(now())
+  liquidity        String
+  amount0          String
+  amount1          String
+  unclaimedFeesUsd Float
+  valueUsd         Float
+  inRange          Boolean
+  ilPct            Float
+
+  position Position @relation(fields: [positionId], references: [id], onDelete: Cascade)
+
+  @@index([positionId, ts])
+  @@map("position_snapshots")
+}
+
+model StrategyConfig {
+  id               String   @id @default(cuid())
+  positionId       String   @unique
+  enabled          Boolean  @default(true)
+  rebalanceAfterHrs Float   @default(6)
+  compoundMinUsd   Float    @default(10)
+  maxSlippagePct   Float    @default(0.5)
+  stopLossIlPct    Float?
+  updatedAt        DateTime @updatedAt
+
+  position Position @relation(fields: [positionId], references: [id], onDelete: Cascade)
+
+  @@map("strategy_configs")
+}
+
+model StrategyAction {
+  id          String   @id @default(cuid())
+  positionId  String
+  ts          DateTime @default(now())
+  type        ActionType
+  status      ActionStatus
+  txHash      String?
+  detailsJson String
+
+  position Position @relation(fields: [positionId], references: [id], onDelete: Cascade)
+
+  @@index([positionId, ts])
+  @@map("strategy_actions")
+}
+
+enum ActionType {
+  REBALANCE
+  COMPOUND
+  STOP_LOSS
+  SKIPPED
+}
+
+enum ActionStatus {
+  EXECUTED
+  FAILED
+  DRY_RUN
+}

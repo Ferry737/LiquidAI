@@ -17,6 +17,8 @@ export interface Position {
   entryPrice: number;
   createdAt: number; // epoch ms
   outOfRangeSince: number | null; // epoch ms or null
+  /** v1.2: DB position ID for strategy config endpoints. */
+  dbId?: string;
 }
 
 export interface PositionView extends Position {
@@ -57,6 +59,8 @@ export const DEMO_POSITIONS: Position[] = [
     entryPrice: 3050,
     createdAt: now - 1000 * 60 * 60 * 24 * 12,
     outOfRangeSince: null,
+    // Demo DB IDs so the strategy drawer works in demo mode.
+    dbId: "demo-10241",
   },
   {
     tokenId: 10388,
@@ -71,6 +75,7 @@ export const DEMO_POSITIONS: Position[] = [
     entryPrice: 3400,
     createdAt: now - 1000 * 60 * 60 * 24 * 30,
     outOfRangeSince: now - 1000 * 60 * 60 * 8,
+    dbId: "demo-10388",
   },
   {
     tokenId: 10502,
@@ -85,6 +90,7 @@ export const DEMO_POSITIONS: Position[] = [
     entryPrice: 1.0,
     createdAt: now - 1000 * 60 * 60 * 24 * 5,
     outOfRangeSince: null,
+    dbId: "demo-10502",
   },
 ];
 

@@ -1,15 +1,19 @@
 // server/src/index.ts
 // LiquidAI API — Fastify + TypeScript. Layered: routes -> services -> clients.
+// v1.2: Prisma + Postgres persistence, graceful DB degradation.
 
 import Fastify from "fastify";
 import cors from "@fastify/cors";
 import rateLimit from "@fastify/rate-limit";
 import { config } from "./lib/config";
 import { ApiError, toErrorBody } from "./lib/errors";
+import { connectDb, disconnectDb, hasDatabase } from "./lib/db";
 import { healthRoutes } from "./routes/health";
 import { poolRoutes } from "./routes/pools";
 import { protocolRoutes } from "./routes/protocol";
 import { positionRoutes } from "./routes/positions";
+import { strategyRoutes } from "./routes/strategy";
+import { analyticsRoutes } from "./routes/analytics";
 
 async function main(): Promise<void> {
   const app = Fastify({
@@ -22,10 +26,23 @@ async function main(): Promise<void> {
     },
   });
 
+  // Connect to Postgres if configured. Persistence is optional — the API
+  // still serves live subgraph data without it.
+  if (hasDatabase()) {
+    try {
+      await connectDb();
+      app.log.info("database connected");
+    } catch (err) {
+      app.log.warn({ err }, "database connection failed — running without persistence");
+    }
+  } else {
+    app.log.warn("DATABASE_URL not set — persistence features disabled");
+  }
+
   // CORS locked to the frontend origin.
   await app.register(cors, {
     origin: config.FRONTEND_ORIGIN,
-    methods: ["GET"],
+    methods: ["GET", "PUT"],
   });
 
   // 100 req/min/IP.
@@ -62,11 +79,14 @@ async function main(): Promise<void> {
   await app.register(poolRoutes);
   await app.register(protocolRoutes);
   await app.register(positionRoutes);
+  await app.register(strategyRoutes);
+  await app.register(analyticsRoutes);
 
   // Graceful shutdown.
   const shutdown = async (signal: string): Promise<void> => {
     app.log.info({ signal }, "shutting down");
     await app.close();
+    await disconnectDb();
     process.exit(0);
   };
   process.on("SIGINT", () => void shutdown("SIGINT"));

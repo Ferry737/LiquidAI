@@ -1,0 +1,99 @@
+# .gitlab-ci.yml
+# LiquidAI v1.2 CI pipeline.
+# Stages: lint -> typecheck -> test
+# Frontend and server checks run in parallel jobs.
+
+stages:
+  - lint
+  - typecheck
+  - test
+
+variables:
+  NODE_VERSION: "20"
+
+# Cache key based on lockfiles so deps are reused across runs.
+.cache_template: &cache_template
+  cache:
+    key:
+      files:
+        - package-lock.json
+        - server/package-lock.json
+      prefix: node20
+    paths:
+      - node_modules/
+      - server/node_modules/
+    policy: pull-push
+
+.setup_node: &setup_node
+  image: node:${NODE_VERSION}
+  before_script:
+    - npm ci
+    - npm ci --prefix server
+
+# ---- LINT STAGE ----
+
+lint:web:
+  stage: lint
+  <<: *setup_node
+  <<: *cache_template
+  script:
+    - npm run lint
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH
+
+lint:server:
+  stage: lint
+  <<: *setup_node
+  <<: *cache_template
+  script:
+    - npm run lint --prefix server
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH
+
+# ---- TYPECHECK STAGE ----
+
+typecheck:web:
+  stage: typecheck
+  <<: *setup_node
+  <<: *cache_template
+  script:
+    - npx tsc --noEmit
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH
+
+typecheck:server:
+  stage: typecheck
+  <<: *setup_node
+  <<: *cache_template
+  script:
+    - npx prisma generate --prefix server
+    - npm run typecheck --prefix server
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH
+
+# ---- TEST STAGE ----
+
+test:web:
+  stage: test
+  <<: *setup_node
+  <<: *cache_template
+  script:
+    - npm test
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH
+
+test:server:
+  stage: test
+  <<: *setup_node
+  <<: *cache_template
+  script:
+    - npx prisma generate --prefix server
+    - npm test --prefix server
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH

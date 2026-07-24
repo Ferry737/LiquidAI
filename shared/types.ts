@@ -1,5 +1,6 @@
 // shared/types.ts
-// Single source of truth for API contracts shared by /server and the Next.js app.
+// Single source of truth for API contracts shared by /server, /worker, and the
+// Next.js app.
 
 export interface PoolToken {
   id: string;
@@ -74,4 +75,83 @@ export interface ApiErrorBody {
   error: string;
   code: string;
   ts: number;
+}
+
+// ---- v1.2: Strategy configuration ----
+
+export interface StrategyConfigDto {
+  positionId: string;
+  enabled: boolean;
+  rebalanceAfterHrs: number;
+  compoundMinUsd: number;
+  maxSlippagePct: number;
+  stopLossIlPct: number | null;
+  updatedAt: number;
+}
+
+// ---- v1.2: Strategy action log ----
+
+export type StrategyActionType = "REBALANCE" | "COMPOUND" | "STOP_LOSS" | "SKIPPED";
+export type StrategyActionStatus = "EXECUTED" | "FAILED" | "DRY_RUN";
+
+export interface StrategyActionDto {
+  id: string;
+  positionId: string;
+  ts: number;
+  type: StrategyActionType;
+  status: StrategyActionStatus;
+  txHash: string | null;
+  detailsJson: string;
+}
+
+export interface PaginatedActions {
+  actions: StrategyActionDto[];
+  total: number;
+  page: number;
+  pageSize: number;
+  hasMore: boolean;
+}
+
+// ---- v1.2: Position snapshot (history) ----
+
+export interface PositionSnapshotDto {
+  id: string;
+  positionId: string;
+  ts: number;
+  liquidity: string;
+  amount0: string;
+  amount1: string;
+  unclaimedFeesUsd: number;
+  valueUsd: number;
+  inRange: boolean;
+  ilPct: number;
+}
+
+export interface PositionHistoryDto {
+  snapshots: PositionSnapshotDto[];
+  positionId: string;
+}
+
+// ---- v1.2: Analytics from DB history ----
+
+export interface AnalyticsSummaryDto {
+  totalValueUsd: number;
+  totalFeesUsd: number;
+  avgFeeApr: number;
+  avgIlPct: number;
+  inRangeCount: number;
+  totalPositions: number;
+  snapshotCount: number;
+}
+
+export interface AnalyticsPointDto {
+  ts: number;
+  totalValueUsd: number;
+  totalFeesUsd: number;
+  avgIlPct: number;
+}
+
+export interface AnalyticsResponse {
+  summary: AnalyticsSummaryDto;
+  series: AnalyticsPointDto[];
 }

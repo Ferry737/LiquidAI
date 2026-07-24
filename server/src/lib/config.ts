@@ -15,6 +15,14 @@ const EnvSchema = z.object({
   LOG_LEVEL: z
     .enum(["fatal", "error", "warn", "info", "debug", "trace"])
     .default("info"),
+  // v1.2
+  DATABASE_URL: z
+    .string()
+    .optional()
+    .refine(
+      (v) => !v || v.startsWith("postgres"),
+      "DATABASE_URL must be a postgres:// connection string"
+    ),
 });
 
 export type AppConfig = z.infer<typeof EnvSchema>;

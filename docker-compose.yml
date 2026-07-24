@@ -1,0 +1,26 @@
+# docker-compose.yml
+# LiquidAI v1.2 — Postgres for local development.
+# Usage: docker compose up -d
+# The API server and worker read DATABASE_URL from .env.
+
+services:
+  postgres:
+    image: postgres:16
+    container_name: liquidai-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: liquidai
+      POSTGRES_PASSWORD: liquidai
+      POSTGRES_DB: liquidai
+    ports:
+      - "5432:5432"
+    volumes:
+      - liquidai_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U liquidai"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  liquidai_pgdata:

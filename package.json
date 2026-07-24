@@ -1,6 +1,6 @@
 {
   "name": "liquidai",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "private": true,
   "scripts": {
     "dev": "concurrently -n web,api -c cyan,green \"npm:dev:web\" \"npm:dev:server\"",
@@ -13,7 +13,10 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
-    "worker": "tsx worker/index.ts"
+    "worker": "tsx worker/index.ts",
+    "db:up": "docker compose up -d",
+    "db:migrate": "npm run db:migrate:dev --prefix server",
+    "db:generate": "npm run db:generate --prefix server"
   },
   "dependencies": {
     "@tanstack/react-query": "^5.59.0",

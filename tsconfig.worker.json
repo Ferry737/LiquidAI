@@ -1,6 +1,6 @@
 {
   "compilerOptions": {
-    "target": "ES2021",
+    "target": "ES2022",
     "lib": ["esnext", "dom"],
     "module": "commonjs",
     "moduleResolution": "node",
@@ -13,5 +13,5 @@
     "baseUrl": ".",
     "paths": { "@/*": ["./src/*"] }
   },
-  "include": ["worker/**/*.ts", "src/lib/abi.ts", "src/lib/constants.ts", "src/lib/defi-math.ts"]
+  "include": ["worker/**/*.ts", "src/lib/abi.ts", "src/lib/constants.ts", "src/lib/defi-math.ts", "shared/**/*.ts"]
 }

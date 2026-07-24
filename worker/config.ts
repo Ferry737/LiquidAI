@@ -1,5 +1,6 @@
 // worker/config.ts
 // Environment-driven configuration for the AI Strategy Engine.
+// v1.2: adds DATABASE_URL for persistence.
 
 import "dotenv/config";
 
@@ -23,4 +24,9 @@ export const config = {
   compoundMinUsd: num(process.env.COMPOUND_MIN_USD, 10),
   // Run every 5 minutes by default.
   cronExpr: process.env.STRATEGY_CRON || "*/5 * * * *",
+  // v1.2: DB for persistence (optional — worker still runs without it).
+  databaseUrl: process.env.DATABASE_URL || "",
+  chainId: num(process.env.CHAIN_ID, 11155111),
+  // When true (default), log all decisions as DRY_RUN without executing on-chain.
+  dryRun: bool(process.env.WORKER_DRY_RUN, true),
 };
