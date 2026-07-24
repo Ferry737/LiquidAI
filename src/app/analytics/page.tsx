@@ -1,0 +1,6 @@
+// src/app/analytics/page.tsx
+import { Analytics } from "@/components/analytics/Analytics";
+
+export default function AnalyticsPage() {
+  return <Analytics />;
+}
