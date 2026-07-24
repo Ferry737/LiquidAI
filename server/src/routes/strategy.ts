@@ -1,10 +1,13 @@
 // server/src/routes/strategy.ts
 // Per-position strategy config + action-log routes (zod-validated).
+// v1.4: PUT is auth-guarded — only the position owner may change its strategy.
 
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { getActionLog, getStrategy, updateStrategy } from "../services/strategy";
-import { BadRequestError } from "../lib/errors";
+import { BadRequestError, NotFoundError } from "../lib/errors";
+import { assertOwnership } from "../lib/auth";
+import { getDb, hasDatabase } from "../lib/db";
 
 const PositionIdSchema = z.object({
   id: z.string().min(1).max(64),
@@ -27,6 +30,31 @@ const ActionQuerySchema = z.object({
   pageSize: z.coerce.number().int().min(1).max(100).default(20),
 });
 
+/**
+ * v1.4: Load the position's owner from the DB and assert the session matches
+ * (case-insensitive). Throws 404 when the position doesn't exist, 401/403 on
+ * auth failure.
+ */
+async function assertPositionOwnership(
+  app: FastifyInstance,
+  session: { address: string } | null,
+  positionId: string
+): Promise<void> {
+  if (!hasDatabase()) {
+    // No DB → no persisted positions; the service layer will 404 anyway.
+    return;
+  }
+  const pos = await getDb().position.findUnique({
+    where: { id: positionId },
+    select: { owner: true },
+  });
+  if (!pos) throw new NotFoundError(`position ${positionId} not found`);
+  assertOwnership(
+    session ? { address: session.address, authenticatedAt: 0, expiresAt: 0 } : null,
+    pos.owner
+  );
+}
+
 export async function strategyRoutes(app: FastifyInstance): Promise<void> {
   app.get("/api/positions/:id/strategy", async (req) => {
     const params = PositionIdSchema.safeParse(req.params);
@@ -35,7 +63,10 @@ export async function strategyRoutes(app: FastifyInstance): Promise<void> {
     return getStrategy(params.data.id);
   });
 
-  app.put("/api/positions/:id/strategy", async (req) => {
+  // v1.4: mutating — requires a valid session AND resource ownership.
+  app.put("/api/positions/:id/strategy", {
+    preHandler: [app.requireAuth],
+  }, async (req) => {
     const params = PositionIdSchema.safeParse(req.params);
     if (!params.success)
       throw new BadRequestError(params.error.issues[0].message);
@@ -44,6 +75,7 @@ export async function strategyRoutes(app: FastifyInstance): Promise<void> {
     if (!body.success)
       throw new BadRequestError(body.error.issues[0].message);
 
+    await assertPositionOwnership(app, req.session, params.data.id);
     return updateStrategy(params.data.id, body.data);
   });
 

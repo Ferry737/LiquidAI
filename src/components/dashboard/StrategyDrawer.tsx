@@ -1,15 +1,18 @@
 // src/components/dashboard/StrategyDrawer.tsx
 // Slide-out drawer for per-position strategy configuration + action log.
 // Matches the existing dark luxury glassmorphism aesthetic.
+// v1.4: auth-gated (SIWE) — controls disabled with "Sign in to manage"
+// tooltip when unauthenticated; adds one-click "Apply preset" chips.
 
 "use client";
 
 import { useState, useEffect } from "react";
-import { Card, CardBody } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { useStrategy, useUpdateStrategy, useActions } from "@/hooks/useStrategy";
-import { formatNum } from "@/lib/utils";
+import { useAuth } from "@/components/auth/AuthProvider";
+import { formatNum, cn } from "@/lib/utils";
+import { PRESETS } from "../../../shared/presets";
 import type { StrategyActionDto } from "../../../shared/types";
 
 interface Props {
@@ -29,6 +32,7 @@ export function StrategyDrawer({
 }: Props) {
   const { data: cfg, isLoading } = useStrategy(open ? positionId : undefined);
   const update = useUpdateStrategy(open ? positionId : undefined);
+  const { isAuthenticated } = useAuth();
   const [tab, setTab] = useState<"config" | "actions">("config");
 
   // Local form state, synced when cfg loads.
@@ -51,7 +55,7 @@ export function StrategyDrawer({
   }, [cfg]);
 
   function handleSave() {
-    if (!positionId) return;
+    if (!positionId || !isAuthenticated) return;
     update.mutate({
       enabled,
       rebalanceAfterHrs: rebalanceHrs,
@@ -61,6 +65,20 @@ export function StrategyDrawer({
     });
     setDirty(false);
   }
+
+  /** v1.4: write a preset's values into the local form (Save persists them). */
+  function applyPreset(name: string) {
+    const preset = PRESETS.find((p) => p.name === name);
+    if (!preset || !isAuthenticated) return;
+    setRebalanceHrs(preset.config.rebalanceAfterHrs);
+    setCompoundMin(preset.config.compoundMinUsd);
+    setMaxSlippage(preset.config.maxSlippagePct);
+    setStopLoss(preset.config.stopLossIlPct ?? "");
+    setDirty(true);
+  }
+
+  const gated = !isAuthenticated;
+  const gateTitle = gated ? "Sign in to manage" : undefined;
 
   return (
     <>
@@ -124,8 +142,52 @@ export function StrategyDrawer({
                 </div>
               ) : (
                 <div className="space-y-6">
+                  {gated && (
+                    <div className="rounded-xl border border-cyan-400/15 bg-cyan-400/[0.04] px-4 py-3 text-xs text-cyan-200/80">
+                      Connect your wallet and sign in to manage this strategy.
+                    </div>
+                  )}
+
+                  {/* v1.4: Apply preset chips */}
+                  <div
+                    className={cn(
+                      "rounded-xl border border-white/5 bg-white/[0.02] px-4 py-4",
+                      gated && "opacity-40"
+                    )}
+                    title={gateTitle}
+                  >
+                    <div className="mb-3 text-sm font-medium text-white/70">
+                      Apply preset
+                    </div>
+                    <div className="flex gap-2">
+                      {PRESETS.map((p) => (
+                        <button
+                          key={p.name}
+                          onClick={() => applyPreset(p.name)}
+                          disabled={gated}
+                          title={gateTitle ?? p.description}
+                          className={cn(
+                            "flex-1 rounded-lg border px-3 py-2 text-xs font-medium transition",
+                            "border-white/10 bg-white/[0.03] text-white/70",
+                            !gated &&
+                              "hover:border-emerald-400/40 hover:text-white",
+                            gated && "cursor-not-allowed"
+                          )}
+                        >
+                          {p.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
                   {/* Enable toggle */}
-                  <div className="flex items-center justify-between rounded-xl border border-white/5 bg-white/[0.02] px-4 py-3">
+                  <div
+                    className={cn(
+                      "flex items-center justify-between rounded-xl border border-white/5 bg-white/[0.02] px-4 py-3",
+                      gated && "opacity-40"
+                    )}
+                    title={gateTitle}
+                  >
                     <div>
                       <div className="text-sm font-medium text-white/80">
                         Automation enabled
@@ -136,6 +198,7 @@ export function StrategyDrawer({
                     </div>
                     <Toggle
                       checked={enabled}
+                      disabled={gated}
                       onChange={(v) => {
                         setEnabled(v);
                         setDirty(true);
@@ -150,6 +213,8 @@ export function StrategyDrawer({
                     min={0}
                     max={48}
                     step={1}
+                    disabled={gated}
+                    title={gateTitle}
                     onChange={(v) => {
                       setRebalanceHrs(v);
                       setDirty(true);
@@ -164,6 +229,8 @@ export function StrategyDrawer({
                     min={0}
                     max={100}
                     step={1}
+                    disabled={gated}
+                    title={gateTitle}
                     onChange={(v) => {
                       setCompoundMin(v);
                       setDirty(true);
@@ -178,6 +245,8 @@ export function StrategyDrawer({
                     min={0}
                     max={5}
                     step={0.1}
+                    disabled={gated}
+                    title={gateTitle}
                     onChange={(v) => {
                       setMaxSlippage(v);
                       setDirty(true);
@@ -186,7 +255,13 @@ export function StrategyDrawer({
                   />
 
                   {/* Stop loss input */}
-                  <div className="rounded-xl border border-white/5 bg-white/[0.02] px-4 py-4">
+                  <div
+                    className={cn(
+                      "rounded-xl border border-white/5 bg-white/[0.02] px-4 py-4",
+                      gated && "opacity-40"
+                    )}
+                    title={gateTitle}
+                  >
                     <div className="mb-2 flex items-center justify-between">
                       <span className="text-sm font-medium text-white/70">
                         Stop-loss IL threshold (%)
@@ -201,13 +276,14 @@ export function StrategyDrawer({
                         min={0}
                         max={100}
                         value={stopLoss}
+                        disabled={gated}
                         onChange={(e) => {
                           const v = e.target.value;
                           setStopLoss(v === "" ? "" : Number(v));
                           setDirty(true);
                         }}
                         placeholder="Disabled"
-                        className="w-24 rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2 text-sm tabular-nums text-white/90 outline-none focus:border-emerald-400/40"
+                        className="w-24 rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2 text-sm tabular-nums text-white/90 outline-none focus:border-emerald-400/40 disabled:cursor-not-allowed"
                       />
                       <span className="text-xs text-white/40">
                         Leave empty to disable
@@ -215,17 +291,21 @@ export function StrategyDrawer({
                     </div>
                   </div>
 
-                  <Button
-                    onClick={handleSave}
-                    disabled={!dirty || update.isPending}
-                    className="w-full"
-                  >
-                    {update.isPending
-                      ? "Saving…"
-                      : update.isSuccess
-                        ? "Saved ✓"
-                        : "Save strategy"}
-                  </Button>
+                  <div title={gateTitle}>
+                    <Button
+                      onClick={handleSave}
+                      disabled={gated || !dirty || update.isPending}
+                      className="w-full"
+                    >
+                      {gated
+                        ? "Sign in to manage"
+                        : update.isPending
+                          ? "Saving…"
+                          : update.isSuccess
+                            ? "Saved ✓"
+                            : "Save strategy"}
+                    </Button>
+                  </div>
 
                   {update.isError && (
                     <p className="text-center text-xs text-red-400">
@@ -273,15 +353,18 @@ function TabButton({
 function Toggle({
   checked,
   onChange,
+  disabled,
 }: {
   checked: boolean;
   onChange: (v: boolean) => void;
+  disabled?: boolean;
 }) {
   return (
     <button
-      onClick={() => onChange(!checked)}
+      onClick={() => !disabled && onChange(!checked)}
+      disabled={disabled}
       className={
-        "relative h-7 w-12 rounded-full transition " +
+        "relative h-7 w-12 rounded-full transition disabled:cursor-not-allowed " +
         (checked
           ? "bg-gradient-to-r from-emerald-400 to-cyan-400"
           : "bg-white/10")
@@ -306,6 +389,8 @@ function SliderField({
   onChange,
   prefix = "",
   suffix = "",
+  disabled,
+  title,
 }: {
   label: string;
   value: number;
@@ -315,9 +400,17 @@ function SliderField({
   onChange: (v: number) => void;
   prefix?: string;
   suffix?: string;
+  disabled?: boolean;
+  title?: string;
 }) {
   return (
-    <div className="rounded-xl border border-white/5 bg-white/[0.02] px-4 py-4">
+    <div
+      className={cn(
+        "rounded-xl border border-white/5 bg-white/[0.02] px-4 py-4",
+        disabled && "opacity-40"
+      )}
+      title={title}
+    >
       <div className="mb-3 flex items-center justify-between">
         <span className="text-sm font-medium text-white/70">{label}</span>
         <div className="flex items-center gap-2">
@@ -327,8 +420,9 @@ function SliderField({
             min={min}
             max={max}
             step={step}
+            disabled={disabled}
             onChange={(e) => onChange(Number(e.target.value))}
-            className="w-16 rounded border border-white/10 bg-white/[0.03] px-2 py-1 text-right text-sm tabular-nums text-white/90 outline-none focus:border-emerald-400/40"
+            className="w-16 rounded border border-white/10 bg-white/[0.03] px-2 py-1 text-right text-sm tabular-nums text-white/90 outline-none focus:border-emerald-400/40 disabled:cursor-not-allowed"
           />
           <span className="text-xs tabular-nums text-white/50">
             {prefix}
@@ -343,8 +437,9 @@ function SliderField({
         min={min}
         max={max}
         step={step}
+        disabled={disabled}
         onChange={(e) => onChange(Number(e.target.value))}
-        className="w-full"
+        className="w-full disabled:cursor-not-allowed"
       />
     </div>
   );

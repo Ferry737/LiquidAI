@@ -30,6 +30,19 @@ export class UpstreamError extends ApiError {
   }
 }
 
+// v1.4: SIWE auth errors.
+export class UnauthorizedError extends ApiError {
+  constructor(message = "authentication required") {
+    super(401, "UNAUTHORIZED", message);
+  }
+}
+
+export class ForbiddenError extends ApiError {
+  constructor(message = "not the resource owner") {
+    super(403, "FORBIDDEN", message);
+  }
+}
+
 export function toErrorBody(message: string, code: string): ApiErrorBody {
   return { error: message, code, ts: Date.now() };
 }

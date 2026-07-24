@@ -1,6 +1,7 @@
 // shared/types.ts
 // Single source of truth for API contracts shared by /server, /worker, and the
 // Next.js app.
+// v1.4: adds SessionInfo (SIWE auth), BacktestResult/BacktestDto, StrategyPreset.
 
 export interface PoolToken {
   id: string;
@@ -218,4 +219,88 @@ export interface EngineStateDto {
   running: boolean;
   dryRun: boolean;
   updatedAt: number;
+}
+
+// ---- v1.4: SIWE Authentication ----
+
+/** Nonce response from GET /api/auth/nonce. */
+export interface NonceResponse {
+  nonce: string;
+}
+
+/** Session info from GET /api/auth/me. */
+export interface SessionInfo {
+  address: string;
+  authenticatedAt: number;
+  expiresAt: number;
+}
+
+/** Body for POST /api/auth/verify. */
+export interface VerifyBody {
+  message: string;
+  signature: string;
+}
+
+// ---- v1.4: Backtesting ----
+
+/** Strategy config shape used by the backtester (subset of StrategyConfigDto). */
+export interface BacktestConfig {
+  rebalanceAfterHrs: number;
+  compoundMinUsd: number;
+  maxSlippagePct: number;
+  stopLossIlPct: number | null;
+}
+
+/** A single point in the backtest value series. */
+export interface BacktestPoint {
+  ts: number;
+  valueUsd: number;
+  hodlUsd: number;
+  feesCumUsd: number;
+}
+
+/** Full backtest result. */
+export interface BacktestResult {
+  finalValueUsd: number;
+  hodlValueUsd: number;
+  feesEarnedUsd: number;
+  ilUsd: number;
+  rebalanceCount: number;
+  gasSpentUsd: number;
+  netVsHodlPct: number;
+  series: BacktestPoint[];
+}
+
+/** Persisted backtest row returned by the API. */
+export interface BacktestDto {
+  id: string;
+  owner: string;
+  poolId: string;
+  from: number;
+  to: number;
+  paramsJson: string;
+  resultJson: string;
+  createdAt: number;
+}
+
+/** Input for POST /api/backtests. */
+export interface CreateBacktestInput {
+  poolId: string;
+  from: number;
+  to: number;
+  initialUsd: number;
+  rangeWidthPct: number;
+  config: BacktestConfig;
+}
+
+// ---- v1.4: Strategy presets ----
+
+export type PresetName = "conservative" | "balanced" | "aggressive";
+
+export interface StrategyPreset {
+  name: PresetName;
+  label: string;
+  description: string;
+  rangeWidthPct: number;
+  config: BacktestConfig;
 }

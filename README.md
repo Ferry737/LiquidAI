@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="https://img.shields.io/badge/LiquidAI-1.3-00d4ff?style=for-the-badge&logo=ethereum&logoColor=white" alt="LiquidAI 1.3" />
+  <img src="https://img.shields.io/badge/LiquidAI-1.4-00d4ff?style=for-the-badge&logo=ethereum&logoColor=white" alt="LiquidAI 1.4" />
   <img src="https://img.shields.io/badge/Testnet-Ethereum%20Sepolia-627eea?style=for-the-badge&logo=ethereum&logoColor=white" alt="Sepolia" />
   <img src="https://img.shields.io/badge/Uniswap-v3-FF007A?style=for-the-badge&logo=uniswap&logoColor=white" alt="Uniswap v3" />
   <img src="https://img.shields.io/badge/License-MIT-8a2be2?style=for-the-badge" alt="MIT" />
@@ -17,7 +17,7 @@
 
 <p align="center">
   <b>A rule-based AI manager for Uniswap v3 liquidity.</b><br/>
-  Automated range management, real-time telemetry, and safe dry-run simulation —<br/>
+  Automated range management, real-time telemetry, wallet-native auth, and safe dry-run simulation —<br/>
   engineered for <b>Ethereum Sepolia</b> (testnet).
 </p>
 
@@ -37,7 +37,9 @@
 | 🧪 **Dry-Run Simulation** | Every transaction is pre-executed with `eth_call` + `estimateGas` before it ever hits the wire. Flip to Live only when you're ready. |
 | 🗄️ **Durable State** | Prisma + Postgres persistence: per-position strategy configs, snapshot history, action log, and notification settings. |
 | 🛡️ **Typed, Bounded API** | Fastify with Zod-validated subgraph + DefiLlama clients, TTL caching, rate limiting, and structured error envelopes. |
-| ✅ **Tested Core** | Vitest suite covering the strategy matrix, Zod schemas, client parsing, and the v1.3 EventBus / SSE / Telegram / Simulation layers. |
+| 🔐 **Wallet-Native SIWE Auth** | Sign in with Ethereum (EIP-4361) → 24h httpOnly session JWT; ownership guards on every mutating route. |
+| 📊 **Backtesting Engine** | Replay hourly subgraph data across Conservative / Balanced / Aggressive presets vs a HODL baseline — fee share, IL, rebalance/compound/stop-loss rules. |
+| ✅ **Tested Core** | Vitest suite covering the strategy matrix, Zod schemas, client parsing, and the v1.4 EventBus / SSE / Telegram / Simulation / Auth / Backtest layers. |
 
 ---
 
@@ -91,6 +93,12 @@ Run the strategy engine in the background (dry-run by default):
 npm run worker     # AI strategy cron engine — safe by default
 ```
 
+### 🔐 v1.4 — Wallet-native auth & backtesting
+
+1. **Sign-in flow (SIWE)**: connect your wallet, then hit **Sign in** in the header — the app fetches a nonce from `/api/auth/nonce`, you sign an EIP-4361 message, and the backend sets a 24h httpOnly session cookie. All mutating routes (strategy configs, notifications, engine toggle, backtests) require it; set `JWT_SECRET` in `server/.env`.
+2. **Running a backtest**: open **Backtest**, pick a pool, date range and initial USD, then **Run comparison** — the three presets (Conservative / Balanced / Aggressive) replay hourly subgraph data in parallel with a dashed HODL baseline, results table and winner card. Hourly `poolHourData` is cached in Postgres, so re-runs skip refetching.
+3. **Presets**: `shared/presets.ts` defines the three presets; the position Strategy drawer has one-click **Apply preset** chips that write the values into your `StrategyConfig`.
+
 ---
 
 ## 🔌 Connecting the Pieces
@@ -137,7 +145,9 @@ The dashboard streams position status and strategy actions over SSE (`/api/strea
 | **Real-Time** | SSE layer with EventBus pub/sub and auto-reconnect |
 | **Alerting** | Telegram Bot API with per-event gating |
 | **Simulation** | `SimulationService` — pre-execution `eth_call` + `estimateGas` with gas-cost estimation |
-| **Tests / CI** | Vitest (strategy matrix, schemas, client parsing, EventBus/SSE/Telegram/Simulation/Notification) · GitLab CI (lint → typecheck → test) |
+| **Auth** | SIWE (EIP-4361) via viem `verifySiweMessage`, `jose` HS256 JWT in httpOnly SameSite=Strict cookie, ownership guards |
+| **Backtesting** | Pure hourly replay — fee-share approximation, IL vs HODL, rebalance/compound/stop-loss rules, preset comparison UI |
+| **Tests / CI** | Vitest (strategy matrix, schemas, client parsing, EventBus/SSE/Telegram/Simulation/Auth/Backtest) · GitLab CI (lint → typecheck → test) |
 
 ---
 
@@ -146,7 +156,7 @@ The dashboard streams position status and strategy actions over SSE (`/api/strea
 - [x] v1.1 — Fastify API server, verified-APY frontend, test/CI foundation
 - [x] v1.2 — Persistence, configurable strategies, tests + CI
 - [x] v1.3 — Real-time SSE layer, Telegram alerts, simulation-backed dry-run mode
-- [ ] Wallet-native session auth & strategy backtesting *(under consideration)*
+- [x] v1.4 — Wallet-native SIWE session auth & strategy backtesting
 
 ---
 
