@@ -1,5 +1,6 @@
 // src/components/Nav.tsx
 // v1.3: adds Settings link and Engine Toggle.
+// v1.4: adds Backtest link, SIWE Sign-in button, and auth-gated engine toggle.
 
 "use client";
 
@@ -8,6 +9,8 @@ import { usePathname } from "next/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { cn } from "@/lib/utils";
 import { ConnectButton } from "./ConnectButton";
+import { SignInButton } from "./auth/SignInButton";
+import { useAuth } from "./auth/AuthProvider";
 import { EngineToggle } from "./dashboard/EngineToggle";
 import { fetchEngineState, updateEngineState } from "@/lib/api";
 
@@ -15,6 +18,7 @@ const LINKS = [
   { href: "/", label: "Dashboard" },
   { href: "/pools", label: "Pools" },
   { href: "/create", label: "Create" },
+  { href: "/backtest", label: "Backtest" },
   { href: "/analytics", label: "Analytics" },
   { href: "/settings", label: "Settings" },
 ];
@@ -22,6 +26,7 @@ const LINKS = [
 export function Nav() {
   const pathname = usePathname();
   const queryClient = useQueryClient();
+  const { isAuthenticated } = useAuth();
 
   const { data: engineState } = useQuery({
     queryKey: ["engine-state"],
@@ -69,10 +74,20 @@ export function Nav() {
           </nav>
         </div>
         <div className="flex items-center gap-3">
-          <EngineToggle engineState={engineState ?? null} onToggle={handleToggle} />
+          {/* v1.4: engine toggle is a mutating action — gated behind SIWE. */}
+          <div
+            className={cn(!isAuthenticated && "pointer-events-none opacity-40")}
+            title={!isAuthenticated ? "Sign in to manage" : undefined}
+          >
+            <EngineToggle
+              engineState={engineState ?? null}
+              onToggle={handleToggle}
+            />
+          </div>
           <span className="hidden rounded-full border border-white/10 px-3 py-1 text-xs text-white/50 sm:inline">
             Sepolia
           </span>
+          <SignInButton />
           <ConnectButton />
         </div>
       </div>

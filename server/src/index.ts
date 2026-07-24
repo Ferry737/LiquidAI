@@ -1,14 +1,17 @@
 // server/src/index.ts
 // LiquidAI API — Fastify + TypeScript. Layered: routes -> services -> clients.
 // v1.3: SSE streaming, Telegram notifications, simulation-backed dry-run.
+// v1.4: SIWE auth (httpOnly JWT cookie) + backtesting routes.
 
 import Fastify from "fastify";
 import cors from "@fastify/cors";
+import cookie from "@fastify/cookie";
 import rateLimit from "@fastify/rate-limit";
 import { config } from "./lib/config";
 import { ApiError, toErrorBody } from "./lib/errors";
 import { connectDb, disconnectDb, hasDatabase } from "./lib/db";
 import { getStreamPoller } from "./lib/streamPoller";
+import { authPlugin } from "./lib/auth";
 import { healthRoutes } from "./routes/health";
 import { poolRoutes } from "./routes/pools";
 import { protocolRoutes } from "./routes/protocol";
@@ -18,6 +21,8 @@ import { analyticsRoutes } from "./routes/analytics";
 import { streamRoutes } from "./routes/stream";
 import { notificationRoutes } from "./routes/notifications";
 import { engineRoutes } from "./routes/engine";
+import { authRoutes } from "./routes/auth";
+import { backtestRoutes } from "./routes/backtests";
 
 async function main(): Promise<void> {
   const app = Fastify({
@@ -43,11 +48,20 @@ async function main(): Promise<void> {
     app.log.warn("DATABASE_URL not set — persistence features disabled");
   }
 
-  // CORS locked to the frontend origin.
+  // CORS locked to the frontend origin. credentials:true so the session
+  // cookie flows on cross-origin requests from the Next.js app.
   await app.register(cors, {
     origin: config.FRONTEND_ORIGIN,
     methods: ["GET", "POST", "PUT"],
+    credentials: true,
   });
+
+  // v1.4: cookie parsing (must be registered before the auth plugin).
+  await app.register(cookie);
+
+  // v1.4: SIWE auth layer — resolves req.session on every request and
+  // exposes app.requireAuth for mutating routes.
+  await app.register(authPlugin);
 
   // 100 req/min/IP.
   await app.register(rateLimit, {
@@ -90,6 +104,9 @@ async function main(): Promise<void> {
   await app.register(streamRoutes);
   await app.register(notificationRoutes);
   await app.register(engineRoutes);
+  // v1.4 routes
+  await app.register(authRoutes);
+  await app.register(backtestRoutes);
 
   // v1.3: Start the stream poller (publishes DB changes to SSE subscribers)
   if (hasDatabase()) {
