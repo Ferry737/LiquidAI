@@ -1,6 +1,7 @@
 // server/prisma/schema.prisma
 // LiquidAI persistence layer — Postgres via Prisma.
 // v1.3: adds NotificationSetting + EngineState models.
+// v1.4: adds PoolHourData (cached hourly pool data for backtesting) + Backtest.
 
 generator client {
   provider = "prisma-client-js"
@@ -122,4 +123,38 @@ model EngineState {
   updatedAt DateTime @updatedAt
 
   @@map("engine_states")
+}
+
+// ---- v1.4: Cached hourly pool data for backtesting ----
+
+model PoolHourData {
+  id        String   @id @default(cuid())
+  poolId    String
+  ts        DateTime
+  price     Float
+  tick      Int
+  tvlUsd    Float
+  volumeUsd Float
+  feesUsd   Float
+
+  @@unique([poolId, ts])
+  @@index([poolId, ts])
+  @@map("pool_hour_data")
+}
+
+// ---- v1.4: Persisted backtest results ----
+
+model Backtest {
+  id         String   @id @default(cuid())
+  owner      String
+  poolId     String
+  from       DateTime
+  to         DateTime
+  paramsJson String
+  resultJson String
+  createdAt  DateTime @default(now())
+
+  @@index([owner, createdAt])
+  @@index([poolId])
+  @@map("backtests")
 }

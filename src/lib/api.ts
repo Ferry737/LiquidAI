@@ -1,6 +1,8 @@
 // src/lib/api.ts
 // Typed fetch layer for the LiquidAI backend.
 // v1.3: adds Notification + Engine API functions.
+// v1.4: credentials:"include" everywhere (httpOnly session cookie) + SIWE
+// auth API + backtest API.
 
 import type {
   AnalyticsResponse,
@@ -12,6 +14,11 @@ import type {
   StrategyConfigDto,
   NotificationSettingDto,
   EngineStateDto,
+  NonceResponse,
+  SessionInfo,
+  BacktestDto,
+  BacktestResult,
+  CreateBacktestInput,
 } from "../../shared/types";
 
 const API_BASE =
@@ -30,9 +37,14 @@ export type {
   StrategyActionStatus,
   StrategyActionType,
   StrategyConfigDto,
+  NonceResponse,
+  SessionInfo,
+  BacktestDto,
+  BacktestResult,
+  CreateBacktestInput,
 } from "../../shared/types";
 
-class ApiClientError extends Error {
+export class ApiClientError extends Error {
   constructor(
     public readonly status: number,
     public readonly code: string,
@@ -43,23 +55,26 @@ class ApiClientError extends Error {
   }
 }
 
+async function parseError(res: Response): Promise<ApiClientError> {
+  let code = "HTTP_ERROR";
+  let message = `API ${res.status}`;
+  try {
+    const body = (await res.json()) as { error?: string; code?: string };
+    if (body.error) message = body.error;
+    if (body.code) code = body.code;
+  } catch {
+    // non-JSON error body — keep defaults
+  }
+  return new ApiClientError(res.status, code, message);
+}
+
 async function apiGet<T>(path: string): Promise<T> {
   const res = await fetch(`${API_BASE}${path}`, {
     headers: { accept: "application/json" },
     cache: "no-store",
+    credentials: "include",
   });
-  if (!res.ok) {
-    let code = "HTTP_ERROR";
-    let message = `API ${res.status}`;
-    try {
-      const body = (await res.json()) as { error?: string; code?: string };
-      if (body.error) message = body.error;
-      if (body.code) code = body.code;
-    } catch {
-      // non-JSON error body — keep defaults
-    }
-    throw new ApiClientError(res.status, code, message);
-  }
+  if (!res.ok) throw await parseError(res);
   return (await res.json()) as T;
 }
 
@@ -69,19 +84,9 @@ async function apiPut<T>(path: string, body: unknown): Promise<T> {
     headers: { "content-type": "application/json", accept: "application/json" },
     body: JSON.stringify(body),
     cache: "no-store",
+    credentials: "include",
   });
-  if (!res.ok) {
-    let code = "HTTP_ERROR";
-    let message = `API ${res.status}`;
-    try {
-      const errBody = (await res.json()) as { error?: string; code?: string };
-      if (errBody.error) message = errBody.error;
-      if (errBody.code) code = errBody.code;
-    } catch {
-      // non-JSON error body
-    }
-    throw new ApiClientError(res.status, code, message);
-  }
+  if (!res.ok) throw await parseError(res);
   return (await res.json()) as T;
 }
 
@@ -91,19 +96,9 @@ async function apiPost<T>(path: string, body?: unknown): Promise<T> {
     headers: { "content-type": "application/json", accept: "application/json" },
     body: body ? JSON.stringify(body) : undefined,
     cache: "no-store",
+    credentials: "include",
   });
-  if (!res.ok) {
-    let code = "HTTP_ERROR";
-    let message = `API ${res.status}`;
-    try {
-      const errBody = (await res.json()) as { error?: string; code?: string };
-      if (errBody.error) message = errBody.error;
-      if (errBody.code) code = errBody.code;
-    } catch {
-      // non-JSON error body
-    }
-    throw new ApiClientError(res.status, code, message);
-  }
+  if (!res.ok) throw await parseError(res);
   return (await res.json()) as T;
 }
 
@@ -198,4 +193,44 @@ export function sendTestNotification(
   return apiPost<{ ok: boolean; error?: string }>(
     `/api/notifications/${encodeURIComponent(owner)}/test`
   );
+}
+
+// ---- v1.4 SIWE Auth API ----
+
+export function fetchNonce(): Promise<NonceResponse> {
+  return apiGet<NonceResponse>(`/api/auth/nonce`);
+}
+
+export function verifySiweSignature(
+  message: string,
+  signature: string
+): Promise<SessionInfo> {
+  return apiPost<SessionInfo>(`/api/auth/verify`, { message, signature });
+}
+
+export function logout(): Promise<{ ok: boolean }> {
+  return apiPost<{ ok: boolean }>(`/api/auth/logout`);
+}
+
+export function fetchSession(): Promise<SessionInfo | null> {
+  return apiGet<SessionInfo | null>(`/api/auth/me`);
+}
+
+// ---- v1.4 Backtest API ----
+
+export function runBacktest(input: CreateBacktestInput): Promise<BacktestDto> {
+  return apiPost<BacktestDto>(`/api/backtests`, input);
+}
+
+export function fetchBacktests(): Promise<BacktestDto[]> {
+  return apiGet<BacktestDto[]>(`/api/backtests`);
+}
+
+export function fetchBacktest(id: string): Promise<BacktestDto> {
+  return apiGet<BacktestDto>(`/api/backtests/${encodeURIComponent(id)}`);
+}
+
+/** Parse the resultJson payload of a persisted backtest row. */
+export function parseBacktestResult(dto: BacktestDto): BacktestResult {
+  return JSON.parse(dto.resultJson) as BacktestResult;
 }

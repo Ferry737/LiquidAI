@@ -30,6 +30,13 @@ const EnvSchema = z.object({
     .string()
     .url()
     .default("https://rpc.sepolia.org"),
+  // v1.4: SIWE auth — JWT signing secret. Must be set for auth to work.
+  JWT_SECRET: z
+    .string()
+    .min(16, "JWT_SECRET must be at least 16 characters")
+    .default("dev-secret-change-me-in-production-32chars"),
+  // v1.4: JWT lifetime in seconds (default 24h).
+  JWT_TTL_SEC: z.coerce.number().int().positive().default(86400),
 });
 
 export type AppConfig = z.infer<typeof EnvSchema>;

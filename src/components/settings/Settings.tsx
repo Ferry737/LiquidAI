@@ -1,6 +1,7 @@
 // src/components/settings/Settings.tsx
 // v1.3: Telegram notification settings UI.
-// Chat ID input with "Send test message" button, per-event-type toggles.
+// v1.4: auth-gated — settings load & save require a SIWE session; controls
+// disabled with "Sign in to manage" tooltip when unauthenticated.
 
 "use client";
 
@@ -14,6 +15,7 @@ import {
   sendTestNotification,
 } from "@/lib/api";
 import type { NotificationSettingDto } from "@/lib/api";
+import { useAuth } from "@/components/auth/AuthProvider";
 import { cn } from "@/lib/utils";
 
 interface ToggleConfig {
@@ -34,7 +36,11 @@ const TOGGLES: ToggleConfig[] = [
 
 export function Settings() {
   const { address } = useAccount();
-  const owner = address ?? "demo";
+  const { isAuthenticated, session } = useAuth();
+  // v1.4: notification settings are keyed by the AUTHENTICATED address.
+  const owner = session?.address ?? address ?? null;
+  const gated = !isAuthenticated || !owner;
+  const gateTitle = gated ? "Sign in to manage" : undefined;
 
   const [setting, setSetting] = useState<NotificationSettingDto | null>(null);
   const [loading, setLoading] = useState(true);
@@ -43,36 +49,43 @@ export function Settings() {
   const [chatIdInput, setChatIdInput] = useState("");
 
   useEffect(() => {
-    void load();
-  }, [owner]);
+    if (gated || !owner) {
+      setSetting(null);
+      setLoading(false);
+      return;
+    }
+    void load(owner);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [owner, gated]);
 
-  async function load() {
+  async function load(who: string) {
     setLoading(true);
     try {
-      const s = await fetchNotifications(owner);
+      const s = await fetchNotifications(who);
       setSetting(s);
       setChatIdInput(s.telegramChatId ?? "");
     } catch {
-      // API might not be available in demo mode
+      // API might not be available / not signed in
     } finally {
       setLoading(false);
     }
   }
 
   async function save(patch: Partial<NotificationSettingDto>) {
+    if (gated || !owner) return;
     setSaving(true);
     try {
       const updated = await updateNotifications(owner, patch);
       setSetting(updated);
     } catch {
-      // demo mode — update locally
-      setSetting((prev) => prev ? { ...prev, ...patch } : prev);
+      // keep server as source of truth — surface nothing extra here
     } finally {
       setSaving(false);
     }
   }
 
   async function handleTest() {
+    if (gated || !owner) return;
     setTestResult(null);
     // Save chat ID first if it changed
     if (chatIdInput !== (setting?.telegramChatId ?? "")) {
@@ -85,7 +98,7 @@ export function Settings() {
           ? "✅ Test message sent!"
           : `❌ ${result.error ?? "Failed to send"}`
       );
-    } catch (e) {
+    } catch {
       setTestResult("❌ Could not reach the API");
     }
     setTimeout(() => setTestResult(null), 5000);
@@ -100,7 +113,13 @@ export function Settings() {
         </p>
       </div>
 
-      <Card hover={false}>
+      {gated && (
+        <div className="rounded-xl border border-cyan-400/15 bg-cyan-400/[0.04] px-4 py-3 text-sm text-cyan-200/80">
+          Connect your wallet and sign in to manage notification settings.
+        </div>
+      )}
+
+      <Card hover={false} className={cn(gated && "opacity-50")}>
         <CardBody className="space-y-6">
           {/* Telegram Bot Setup */}
           <div className="space-y-4">
@@ -130,7 +149,7 @@ export function Settings() {
             </div>
 
             {/* Chat ID input */}
-            <div className="space-y-2">
+            <div className="space-y-2" title={gateTitle}>
               <label className="text-sm font-medium text-white/80">
                 Telegram Chat ID
               </label>
@@ -138,14 +157,16 @@ export function Settings() {
                 <input
                   type="text"
                   value={chatIdInput}
+                  disabled={gated}
                   onChange={(e) => setChatIdInput(e.target.value)}
                   placeholder="e.g. 123456789"
-                  className="flex-1 rounded-xl border border-white/10 bg-white/[0.02] px-4 py-2.5 text-sm outline-none transition-colors placeholder:text-white/30 focus:border-cyan-400/30"
+                  className="flex-1 rounded-xl border border-white/10 bg-white/[0.02] px-4 py-2.5 text-sm outline-none transition-colors placeholder:text-white/30 focus:border-cyan-400/30 disabled:cursor-not-allowed"
                 />
                 <Button
                   variant="ghost"
                   onClick={() => void handleTest()}
-                  disabled={loading || !chatIdInput}
+                  disabled={gated || loading || !chatIdInput}
+                  title={gateTitle}
                 >
                   Send test message
                 </Button>
@@ -156,7 +177,10 @@ export function Settings() {
             </div>
 
             {/* Global enable */}
-            <div className="flex items-center justify-between rounded-lg border border-white/5 bg-white/[0.02] px-4 py-3">
+            <div
+              className="flex items-center justify-between rounded-lg border border-white/5 bg-white/[0.02] px-4 py-3"
+              title={gateTitle}
+            >
               <div>
                 <div className="text-sm font-medium">Enable notifications</div>
                 <div className="text-xs text-white/40">
@@ -166,7 +190,7 @@ export function Settings() {
               <Toggle
                 checked={setting?.enabled ?? false}
                 onChange={(v) => void save({ enabled: v })}
-                disabled={loading || saving}
+                disabled={gated || loading || saving}
               />
             </div>
           </div>
@@ -178,6 +202,7 @@ export function Settings() {
               <div
                 key={t.key}
                 className="flex items-center justify-between rounded-lg border border-white/5 bg-white/[0.02] px-4 py-3"
+                title={gateTitle}
               >
                 <div>
                   <div className="text-sm font-medium">{t.label}</div>
@@ -186,13 +211,16 @@ export function Settings() {
                 <Toggle
                   checked={setting?.[t.key] ?? false}
                   onChange={(v) => void save({ [t.key]: v })}
-                  disabled={loading || saving}
+                  disabled={gated || loading || saving}
                 />
               </div>
             ))}
 
             {/* Out-of-range threshold */}
-            <div className="flex items-center justify-between rounded-lg border border-white/5 bg-white/[0.02] px-4 py-3">
+            <div
+              className="flex items-center justify-between rounded-lg border border-white/5 bg-white/[0.02] px-4 py-3"
+              title={gateTitle}
+            >
               <div>
                 <div className="text-sm font-medium">Out-of-range threshold</div>
                 <div className="text-xs text-white/40">
@@ -204,6 +232,7 @@ export function Settings() {
                   type="number"
                   min={0}
                   max={720}
+                  disabled={gated}
                   value={setting?.onOutOfRangeHrs ?? ""}
                   onChange={(e) => {
                     const v = e.target.value;
@@ -212,7 +241,7 @@ export function Settings() {
                     });
                   }}
                   placeholder="off"
-                  className="w-20 rounded-lg border border-white/10 bg-white/[0.02] px-3 py-1.5 text-center text-sm outline-none focus:border-cyan-400/30"
+                  className="w-20 rounded-lg border border-white/10 bg-white/[0.02] px-3 py-1.5 text-center text-sm outline-none focus:border-cyan-400/30 disabled:cursor-not-allowed"
                 />
                 <span className="text-xs text-white/40">hrs</span>
               </div>
