@@ -2,12 +2,12 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { fetchTopPools, type RankedPool } from "@/lib/subgraph";
+import { fetchPools, type RankedPool } from "@/lib/api";
 
 export function usePools() {
   return useQuery<RankedPool[]>({
     queryKey: ["top-pools"],
-    queryFn: () => fetchTopPools(25),
+    queryFn: () => fetchPools(25),
     staleTime: 60_000,
     refetchInterval: 120_000,
   });

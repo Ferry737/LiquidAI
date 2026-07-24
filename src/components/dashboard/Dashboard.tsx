@@ -7,6 +7,7 @@ import { usePositions } from "@/hooks/usePositions";
 import { StatCard } from "./StatCard";
 import { PositionCard } from "./PositionCard";
 import { StrategyPanel } from "./StrategyPanel";
+import { ProtocolStatsStrip } from "./ProtocolStatsStrip";
 import { Card, CardBody } from "@/components/ui/Card";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { Button } from "@/components/ui/Button";
@@ -37,6 +38,8 @@ export function Dashboard() {
           <Button>+ New position</Button>
         </Link>
       </div>
+
+      <ProtocolStatsStrip />
 
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         <StatCard

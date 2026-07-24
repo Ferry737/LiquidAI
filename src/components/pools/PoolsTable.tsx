@@ -6,6 +6,7 @@ import { usePools } from "@/hooks/usePools";
 import { Card } from "@/components/ui/Card";
 import { Sparkline } from "@/components/ui/Sparkline";
 import { Skeleton } from "@/components/ui/Skeleton";
+import { VerifiedApyBadge } from "@/components/pools/VerifiedApyBadge";
 import { FEE_TIERS } from "@/lib/constants";
 import { formatUSD, formatPct } from "@/lib/utils";
 
@@ -54,6 +55,7 @@ export function PoolsTable() {
               <span className="rounded-md bg-white/[0.05] px-1.5 py-0.5 text-xs text-white/50">
                 {feeLabel(p.feeTier)}
               </span>
+              {p.verifiedApy && <VerifiedApyBadge />}
             </div>
             <div className="col-span-2 text-right tabular-nums text-white/80">
               {formatUSD(p.tvlUSD)}
