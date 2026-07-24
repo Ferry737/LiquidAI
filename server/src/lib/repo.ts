@@ -1,6 +1,7 @@
 // server/src/lib/repo.ts
 // Data-access layer: all Prisma queries live here. Services call repo
 // functions, never touch Prisma directly — making mocking trivial in tests.
+// v1.3: adds NotificationSetting + EngineState queries.
 
 import type {
   StrategyActionDto,
@@ -8,6 +9,8 @@ import type {
   StrategyActionType,
   StrategyConfigDto,
   PositionSnapshotDto,
+  NotificationSettingDto,
+  EngineStateDto,
 } from "../../../shared/types";
 import { getDb, hasDatabase } from "./db";
 
@@ -176,6 +179,21 @@ export async function getActions(
   return { actions: rows.map(actionToDto), total };
 }
 
+// ---- v1.3: Recent actions across all positions (for StreamPoller) ----
+
+export async function getRecentActions(
+  sinceTs: Date,
+  limit = 50
+): Promise<StrategyActionDto[]> {
+  const db = getDb();
+  const rows = await db.strategyAction.findMany({
+    where: { ts: { gt: sinceTs } },
+    orderBy: { ts: "asc" },
+    take: limit,
+  });
+  return rows.map(actionToDto);
+}
+
 // ---- Analytics aggregates ----
 
 export async function getLatestSnapshotsAll(): Promise<
@@ -221,6 +239,101 @@ export async function isDbReady(): Promise<boolean> {
   } catch {
     return false;
   }
+}
+
+// ---- v1.3: NotificationSetting ----
+
+export interface NotificationSettingInput {
+  owner: string;
+  telegramChatId?: string | null;
+  enabled?: boolean;
+  onRebalance?: boolean;
+  onCompound?: boolean;
+  onStopLoss?: boolean;
+  onFailure?: boolean;
+  onOutOfRangeHrs?: number | null;
+}
+
+export async function getNotificationSetting(
+  owner: string
+): Promise<NotificationSettingDto | null> {
+  const db = getDb();
+  const row = await db.notificationSetting.findUnique({
+    where: { owner },
+  });
+  return row ? notificationToDto(row) : null;
+}
+
+export async function upsertNotificationSetting(
+  input: NotificationSettingInput
+): Promise<NotificationSettingDto> {
+  const db = getDb();
+  const row = await db.notificationSetting.upsert({
+    where: { owner: input.owner },
+    create: {
+      owner: input.owner,
+      telegramChatId: input.telegramChatId ?? null,
+      enabled: input.enabled ?? false,
+      onRebalance: input.onRebalance ?? true,
+      onCompound: input.onCompound ?? true,
+      onStopLoss: input.onStopLoss ?? true,
+      onFailure: input.onFailure ?? true,
+      onOutOfRangeHrs: input.onOutOfRangeHrs ?? null,
+    },
+    update: {
+      ...(input.telegramChatId !== undefined && { telegramChatId: input.telegramChatId }),
+      ...(input.enabled !== undefined && { enabled: input.enabled }),
+      ...(input.onRebalance !== undefined && { onRebalance: input.onRebalance }),
+      ...(input.onCompound !== undefined && { onCompound: input.onCompound }),
+      ...(input.onStopLoss !== undefined && { onStopLoss: input.onStopLoss }),
+      ...(input.onFailure !== undefined && { onFailure: input.onFailure }),
+      ...(input.onOutOfRangeHrs !== undefined && { onOutOfRangeHrs: input.onOutOfRangeHrs }),
+    },
+  });
+  return notificationToDto(row);
+}
+
+// ---- v1.3: EngineState (singleton) ----
+
+const SINGLETON_ID = "singleton";
+
+export async function getEngineState(): Promise<EngineStateDto> {
+  const db = getDb();
+  let row = await db.engineState.findUnique({
+    where: { id: SINGLETON_ID },
+  });
+  if (!row) {
+    row = await db.engineState.create({
+      data: { id: SINGLETON_ID, running: true, dryRun: true },
+    });
+  }
+  return {
+    running: row.running,
+    dryRun: row.dryRun,
+    updatedAt: row.updatedAt.getTime(),
+  };
+}
+
+export async function updateEngineState(patch: {
+  running?: boolean;
+  dryRun?: boolean;
+}): Promise<EngineStateDto> {
+  const db = getDb();
+  // Upsert to handle the case where the singleton doesn't exist yet.
+  const row = await db.engineState.upsert({
+    where: { id: SINGLETON_ID },
+    create: {
+      id: SINGLETON_ID,
+      running: patch.running ?? true,
+      dryRun: patch.dryRun ?? true,
+    },
+    update: patch,
+  });
+  return {
+    running: row.running,
+    dryRun: row.dryRun,
+    updatedAt: row.updatedAt.getTime(),
+  };
 }
 
 // ---- Mappers ----
@@ -288,5 +401,29 @@ function actionToDto(row: {
     status: row.status,
     txHash: row.txHash,
     detailsJson: row.detailsJson,
+  };
+}
+
+function notificationToDto(row: {
+  owner: string;
+  telegramChatId: string | null;
+  enabled: boolean;
+  onRebalance: boolean;
+  onCompound: boolean;
+  onStopLoss: boolean;
+  onFailure: boolean;
+  onOutOfRangeHrs: number | null;
+  updatedAt: Date;
+}): NotificationSettingDto {
+  return {
+    owner: row.owner,
+    telegramChatId: row.telegramChatId,
+    enabled: row.enabled,
+    onRebalance: row.onRebalance,
+    onCompound: row.onCompound,
+    onStopLoss: row.onStopLoss,
+    onFailure: row.onFailure,
+    onOutOfRangeHrs: row.onOutOfRangeHrs,
+    updatedAt: row.updatedAt.getTime(),
   };
 }

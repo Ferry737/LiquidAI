@@ -1,6 +1,6 @@
 // server/src/index.ts
 // LiquidAI API — Fastify + TypeScript. Layered: routes -> services -> clients.
-// v1.2: Prisma + Postgres persistence, graceful DB degradation.
+// v1.3: SSE streaming, Telegram notifications, simulation-backed dry-run.
 
 import Fastify from "fastify";
 import cors from "@fastify/cors";
@@ -8,12 +8,16 @@ import rateLimit from "@fastify/rate-limit";
 import { config } from "./lib/config";
 import { ApiError, toErrorBody } from "./lib/errors";
 import { connectDb, disconnectDb, hasDatabase } from "./lib/db";
+import { getStreamPoller } from "./lib/streamPoller";
 import { healthRoutes } from "./routes/health";
 import { poolRoutes } from "./routes/pools";
 import { protocolRoutes } from "./routes/protocol";
 import { positionRoutes } from "./routes/positions";
 import { strategyRoutes } from "./routes/strategy";
 import { analyticsRoutes } from "./routes/analytics";
+import { streamRoutes } from "./routes/stream";
+import { notificationRoutes } from "./routes/notifications";
+import { engineRoutes } from "./routes/engine";
 
 async function main(): Promise<void> {
   const app = Fastify({
@@ -42,7 +46,7 @@ async function main(): Promise<void> {
   // CORS locked to the frontend origin.
   await app.register(cors, {
     origin: config.FRONTEND_ORIGIN,
-    methods: ["GET", "PUT"],
+    methods: ["GET", "POST", "PUT"],
   });
 
   // 100 req/min/IP.
@@ -75,16 +79,28 @@ async function main(): Promise<void> {
     reply.status(404).send(toErrorBody("route not found", "NOT_FOUND"))
   );
 
+  // v1.2 routes
   await app.register(healthRoutes);
   await app.register(poolRoutes);
   await app.register(protocolRoutes);
   await app.register(positionRoutes);
   await app.register(strategyRoutes);
   await app.register(analyticsRoutes);
+  // v1.3 routes
+  await app.register(streamRoutes);
+  await app.register(notificationRoutes);
+  await app.register(engineRoutes);
+
+  // v1.3: Start the stream poller (publishes DB changes to SSE subscribers)
+  if (hasDatabase()) {
+    getStreamPoller().start();
+    app.log.info("stream poller started (30s interval)");
+  }
 
   // Graceful shutdown.
   const shutdown = async (signal: string): Promise<void> => {
     app.log.info({ signal }, "shutting down");
+    getStreamPoller().stop();
     await app.close();
     await disconnectDb();
     process.exit(0);

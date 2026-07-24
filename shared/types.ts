@@ -155,3 +155,67 @@ export interface AnalyticsResponse {
   summary: AnalyticsSummaryDto;
   series: AnalyticsPointDto[];
 }
+
+// ---- v1.3: Server-Sent Events ----
+
+export type SseEventType =
+  | "price_update"
+  | "position_status"
+  | "strategy_action"
+  | "engine_status";
+
+export interface PriceUpdateEvent {
+  poolId: string;
+  price: number;
+  ts: number;
+}
+
+export interface PositionStatusEvent {
+  positionId: string;
+  inRange: boolean;
+  valueUsd: number;
+  unclaimedFeesUsd: number;
+}
+
+export interface EngineStatusEvent {
+  running: boolean;
+  dryRun: boolean;
+  lastRunTs: number;
+}
+
+/** Discriminated union for all SSE event payloads. */
+export type SseEventData =
+  | { type: "price_update"; data: PriceUpdateEvent }
+  | { type: "position_status"; data: PositionStatusEvent }
+  | { type: "strategy_action"; data: StrategyActionDto }
+  | { type: "engine_status"; data: EngineStatusEvent };
+
+/** Wire format for a single SSE frame (id, event type, JSON data). */
+export interface SseEvent {
+  id: string;
+  event: SseEventType;
+  data: PriceUpdateEvent | PositionStatusEvent | StrategyActionDto | EngineStatusEvent;
+  ts: number;
+}
+
+// ---- v1.3: Notification settings ----
+
+export interface NotificationSettingDto {
+  owner: string;
+  telegramChatId: string | null;
+  enabled: boolean;
+  onRebalance: boolean;
+  onCompound: boolean;
+  onStopLoss: boolean;
+  onFailure: boolean;
+  onOutOfRangeHrs: number | null;
+  updatedAt: number;
+}
+
+// ---- v1.3: Engine state ----
+
+export interface EngineStateDto {
+  running: boolean;
+  dryRun: boolean;
+  updatedAt: number;
+}

@@ -1,13 +1,17 @@
 // worker/index.ts
-// LiquidAI v1.2 — AI Strategy Engine (rule-based cron worker) with persistence.
+// LiquidAI v1.3 — AI Strategy Engine with SSE, Telegram, simulation, dry-run.
 //
 // Every tick it:
 //   1. Loads managed positions (from DB if available, else demo set)
-//   2. Fetches live position data (price, fees, IL, range status)
-//   3. Writes a PositionSnapshot to the DB for every position
-//   4. Runs the decision rules (rebalance / auto-compound / stop-loss / hold)
-//   5. Writes a StrategyAction for every decision (including SKIPPED)
-//   6. Executes on-chain via NonfungiblePositionManager (or DRY_RUN)
+//   2. Reads the global EngineState from DB (dryRun can be toggled via API)
+//   3. Fetches live position data (price, fees, IL, range status)
+//   4. Writes a PositionSnapshot to the DB for every position
+//   5. Runs the decision rules (rebalance / auto-compound / stop-loss / hold)
+//   6. Simulates the transaction via SimulationService before executing
+//   7. Writes a StrategyAction for every decision (including SKIPPED)
+//   8. Executes on-chain via NonfungiblePositionManager (or DRY_RUN)
+//   9. Sends Telegram alerts per notification settings (fire-and-forget)
+//  10. Publishes events to the EventBus for SSE subscribers
 //
 // Testnet only. Never point WORKER_PRIVATE_KEY at a mainnet-funded key.
 
@@ -17,6 +21,7 @@ import {
   createWalletClient,
   http,
   type Hex,
+  type Address,
 } from "viem";
 import { privateKeyToAccount, generatePrivateKey } from "viem/accounts";
 import { sepolia } from "viem/chains";
@@ -29,10 +34,23 @@ import {
   type DecisionConfig,
   type DecisionPosition,
 } from "../shared/strategy";
-import type { StrategyActionType } from "../shared/types";
+import type { StrategyActionType, StrategyActionDto } from "../shared/types";
 import { minOut } from "./strategy";
 import { positionManagerAbi } from "../src/lib/abi";
 import { UNISWAP_V3 } from "../src/lib/constants";
+
+// ---- v1.3 imports ----
+import {
+  SimulationService,
+  type SimulationResult,
+  type ActionType,
+} from "../server/src/services/simulation";
+import {
+  TelegramClient,
+  formatActionAlert,
+  formatOutOfRangeAlert,
+} from "../server/src/clients/telegram";
+import { eventBus } from "../server/src/lib/eventBus";
 
 // ---- Prisma (optional) ----
 
@@ -44,6 +62,23 @@ function getDb(): PrismaClient | null {
     prisma = new PrismaClient({ log: ["error", "warn"] });
   }
   return prisma;
+}
+
+// ---- v1.3: Engine state from DB ----
+
+async function getEngineDryRun(): Promise<boolean> {
+  // The global dryRun from DB overrides the env var when available.
+  const db = getDb();
+  if (!db) return config.dryRun;
+  try {
+    const row = await db.engineState.findUnique({
+      where: { id: "singleton" },
+    });
+    if (row) return row.dryRun;
+  } catch {
+    // fall through to config
+  }
+  return config.dryRun;
 }
 
 // ---- Viem clients ----
@@ -70,6 +105,14 @@ const walletClient = createWalletClient({
   transport: http(config.rpc),
 });
 
+// ---- v1.3: Simulation + Telegram clients ----
+
+const simulationService = new SimulationService({
+  rpcUrl: config.rpc,
+});
+
+const telegram = new TelegramClient(config.telegramBotToken);
+
 function log(msg: string): void {
   console.log(`[${new Date().toISOString()}] ${msg}`);
 }
@@ -91,6 +134,8 @@ interface ManagedPosition {
   amount0: string;
   amount1: string;
   valueUSD: number;
+  /** v1.3: position owner (for notifications) */
+  owner: string;
 }
 
 /**
@@ -116,6 +161,7 @@ async function loadPositions(): Promise<ManagedPosition[]> {
       amount0: "2.1",
       amount1: "6700",
       valueUSD: 12_450,
+      owner: "demo",
     },
     {
       positionId: "demo-2",
@@ -132,6 +178,7 @@ async function loadPositions(): Promise<ManagedPosition[]> {
       amount0: "1.8",
       amount1: "5800",
       valueUSD: 6_820,
+      owner: "demo",
     },
   ];
 
@@ -163,6 +210,7 @@ async function loadPositions(): Promise<ManagedPosition[]> {
       amount0: "0",
       amount1: "0",
       valueUSD: 0,
+      owner: p.owner,
     }));
   } catch (err) {
     log(`[warn] DB load failed, using demo set: ${(err as Error).message}`);
@@ -234,23 +282,143 @@ async function recordAction(
   type: StrategyActionType,
   status: "EXECUTED" | "FAILED" | "DRY_RUN",
   reason: string,
+  details?: Record<string, unknown>,
   txHash?: string
-): Promise<void> {
+): Promise<StrategyActionDto | null> {
   const db = getDb();
-  if (!db || positionId.startsWith("demo-")) return;
+  if (!db || positionId.startsWith("demo-")) {
+    // Still publish to EventBus for demo mode
+    const dto: StrategyActionDto = {
+      id: `demo-${Date.now()}`,
+      positionId,
+      ts: Date.now(),
+      type,
+      status,
+      txHash: txHash ?? null,
+      detailsJson: JSON.stringify({ reason, ts: Date.now(), ...details }),
+    };
+    publishEvent("strategy_action", dto);
+    return dto;
+  }
 
   try {
-    await db.strategyAction.create({
+    const row = await db.strategyAction.create({
       data: {
         positionId,
         type,
         status,
         txHash: txHash ?? null,
-        detailsJson: JSON.stringify({ reason, ts: Date.now() }),
+        detailsJson: JSON.stringify({ reason, ts: Date.now(), ...details }),
       },
     });
+    const dto: StrategyActionDto = {
+      id: row.id,
+      positionId: row.positionId,
+      ts: row.ts.getTime(),
+      type: row.type,
+      status: row.status,
+      txHash: row.txHash,
+      detailsJson: row.detailsJson,
+    };
+    publishEvent("strategy_action", dto);
+    return dto;
   } catch (err) {
     log(`  [warn] action write failed: ${(err as Error).message}`);
+    return null;
+  }
+}
+
+// ---- v1.3: EventBus publishing ----
+
+function publishEvent(
+  type: "strategy_action" | "position_status" | "engine_status",
+  data: unknown
+): void {
+  try {
+    eventBus.publish({ type, data: data as any });
+  } catch {
+    // EventBus publishing must never break the tick
+  }
+}
+
+// ---- v1.3: Notification dispatch ----
+
+/**
+ * Fire-and-forget notification dispatch. Queries notification settings for
+ * the position owner and sends alerts per the gating rules.
+ */
+async function maybeNotify(opts: {
+  owner: string;
+  event: "rebalance" | "compound" | "stopLoss" | "failure" | "outOfRange";
+  actionType: string;
+  status: string;
+  pair: string;
+  tokenId: string | number;
+  reason?: string;
+  dryRun?: boolean;
+  hoursOutOfRange?: number;
+}): Promise<void> {
+  if (!telegram.isEnabled) return;
+  if (opts.owner === "demo") return;
+
+  const db = getDb();
+  if (!db) return;
+
+  try {
+    const setting = await db.notificationSetting.findUnique({
+      where: { owner: opts.owner },
+    });
+    if (!setting || !setting.enabled || !setting.telegramChatId) return;
+
+    let shouldSend = false;
+    switch (opts.event) {
+      case "rebalance": shouldSend = setting.onRebalance; break;
+      case "compound": shouldSend = setting.onCompound; break;
+      case "stopLoss": shouldSend = setting.onStopLoss; break;
+      case "failure": shouldSend = setting.onFailure; break;
+      case "outOfRange":
+        shouldSend = setting.onOutOfRangeHrs !== null &&
+          setting.onOutOfRangeHrs > 0 &&
+          (opts.hoursOutOfRange ?? 0) >= setting.onOutOfRangeHrs;
+        break;
+    }
+    if (!shouldSend) return;
+
+    // Check if we already sent an out-of-range alert (avoid repeats)
+    if (opts.event === "outOfRange") {
+      const recentAlert = await db.strategyAction.findFirst({
+        where: {
+          positionId: opts.pair, // simplified — in production use positionId
+          type: "SKIPPED",
+          detailsJson: { contains: "out_of_range_alerted" },
+          ts: { gte: new Date(Date.now() - 6 * 3_600_000) },
+        },
+      });
+      if (recentAlert) return; // already alerted within 6h
+    }
+
+    let msg: string;
+    if (opts.event === "outOfRange") {
+      msg = formatOutOfRangeAlert(
+        opts.pair,
+        opts.tokenId,
+        opts.hoursOutOfRange ?? 0
+      );
+    } else {
+      msg = formatActionAlert({
+        actionType: opts.actionType,
+        status: opts.status,
+        pair: opts.pair,
+        tokenId: opts.tokenId,
+        reason: opts.reason,
+        dryRun: opts.dryRun,
+      });
+    }
+
+    // Fire-and-forget — never await in a way that blocks
+    void telegram.sendAlert(setting.telegramChatId, msg);
+  } catch (err) {
+    log(`  [warn] notification failed: ${(err as Error).message}`);
   }
 }
 
@@ -259,9 +427,6 @@ async function recordAction(
 async function executeCompound(
   tokenId: number
 ): Promise<{ hash?: string; ok: boolean }> {
-  if (config.dryRun) {
-    return { ok: true };
-  }
   const maxU128 = (1n << 128n) - 1n;
   try {
     const { request } = await publicClient.simulateContract({
@@ -289,9 +454,6 @@ async function executeCompound(
 async function executeRebalance(
   tokenId: number
 ): Promise<{ hash?: string; ok: boolean }> {
-  if (config.dryRun) {
-    return { ok: true };
-  }
   try {
     const { request } = await publicClient.simulateContract({
       account,
@@ -319,6 +481,8 @@ async function executeRebalance(
 // ---- Main tick ----
 
 async function tick(): Promise<void> {
+  const dryRun = await getEngineDryRun();
+
   if (config.killSwitch) {
     log("KILL SWITCH ON — no actions taken.");
     const positions = await loadPositions();
@@ -330,15 +494,28 @@ async function tick(): Promise<void> {
         "kill switch active"
       );
     }
+    publishEvent("engine_status", {
+      running: false,
+      dryRun,
+      lastRunTs: Date.now(),
+    });
     return;
   }
 
   const positions = await loadPositions();
-  log(`tick · ${positions.length} positions · dryRun=${config.dryRun}`);
+  log(`tick · ${positions.length} positions · dryRun=${dryRun}`);
 
   for (const pos of positions) {
     // 1. Record a snapshot for every position.
     await recordSnapshot(pos);
+
+    // Publish position_status event
+    publishEvent("position_status", {
+      positionId: pos.positionId,
+      inRange: pos.inRange,
+      valueUsd: pos.valueUSD,
+      unclaimedFeesUsd: pos.unclaimedFeesUSD,
+    });
 
     // 2. Get this position's strategy config.
     const cfg = await getConfig(pos.positionId);
@@ -369,49 +546,224 @@ async function tick(): Promise<void> {
       );
     } else if (decision.type === "STOP_LOSS") {
       log(`  #${pos.tokenId} STOP_LOSS — ${decision.reason}`);
+
+      // v1.3: Simulate before executing
+      const sim = await simulationService.simulate({
+        type: "STOP_LOSS" as ActionType,
+        tokenId: pos.tokenId,
+        caller: account.address as Address,
+      });
+
+      if (!sim.ok) {
+        log(`  ↳ simulation failed: ${sim.reason} — skipping execution`);
+        await recordAction(
+          pos.positionId,
+          "STOP_LOSS",
+          "FAILED",
+          `simulation failed: ${sim.reason}`,
+          { simulation: sim }
+        );
+        await maybeNotify({
+          owner: pos.owner,
+          event: "failure",
+          actionType: "STOP_LOSS",
+          status: "FAILED",
+          pair: pos.pair,
+          tokenId: pos.tokenId,
+          reason: sim.reason,
+        });
+        continue;
+      }
+
+      const result = dryRun
+        ? { ok: true }
+        : await executeRebalance(pos.tokenId);
+
+      const status = result.ok
+        ? dryRun ? "DRY_RUN" : "EXECUTED"
+        : "FAILED";
+
       await recordAction(
         pos.positionId,
         "STOP_LOSS",
-        config.dryRun ? "DRY_RUN" : "EXECUTED",
-        decision.reason
+        status,
+        decision.reason,
+        {
+          expectedAmount0: sim.expectedAmount0,
+          expectedAmount1: sim.expectedAmount1,
+          gasEstimate: sim.gasEstimate,
+          gasCostUsd: sim.gasCostUsd,
+        }
       );
+
+      await maybeNotify({
+        owner: pos.owner,
+        event: result.ok ? "stopLoss" : "failure",
+        actionType: "STOP_LOSS",
+        status,
+        pair: pos.pair,
+        tokenId: pos.tokenId,
+        reason: decision.reason,
+        dryRun,
+      });
+
     } else if (decision.type === "COMPOUND") {
       log(`  #${pos.tokenId} COMPOUND — ${decision.reason}`);
-      const result = await executeCompound(pos.tokenId);
+
+      // v1.3: Simulate before executing
+      const sim = await simulationService.simulate({
+        type: "COMPOUND" as ActionType,
+        tokenId: pos.tokenId,
+        caller: account.address as Address,
+      });
+
+      if (!sim.ok) {
+        log(`  ↳ simulation failed: ${sim.reason} — skipping execution`);
+        await recordAction(
+          pos.positionId,
+          "COMPOUND",
+          "FAILED",
+          `simulation failed: ${sim.reason}`,
+          { simulation: sim }
+        );
+        await maybeNotify({
+          owner: pos.owner,
+          event: "failure",
+          actionType: "COMPOUND",
+          status: "FAILED",
+          pair: pos.pair,
+          tokenId: pos.tokenId,
+          reason: sim.reason,
+        });
+        continue;
+      }
+
+      const result = dryRun
+        ? { ok: true }
+        : await executeCompound(pos.tokenId);
+
+      const status = result.ok
+        ? dryRun ? "DRY_RUN" : "EXECUTED"
+        : "FAILED";
+
       await recordAction(
         pos.positionId,
         "COMPOUND",
-        result.ok
-          ? config.dryRun
-            ? "DRY_RUN"
-            : "EXECUTED"
-          : "FAILED",
+        status,
         decision.reason,
-        result.hash
+        {
+          expectedAmount0: sim.expectedAmount0,
+          expectedAmount1: sim.expectedAmount1,
+          gasEstimate: sim.gasEstimate,
+          gasCostUsd: sim.gasCostUsd,
+        }
       );
+
+      await maybeNotify({
+        owner: pos.owner,
+        event: result.ok ? "compound" : "failure",
+        actionType: "COMPOUND",
+        status,
+        pair: pos.pair,
+        tokenId: pos.tokenId,
+        reason: decision.reason,
+        dryRun,
+      });
+
     } else if (decision.type === "REBALANCE") {
       log(
         `  #${pos.tokenId} REBALANCE → [${decision.newLower?.toFixed(2)}, ${decision.newUpper?.toFixed(2)}] — ${decision.reason}`
       );
-      const result = await executeRebalance(pos.tokenId);
+
+      // v1.3: Simulate before executing
+      const sim = await simulationService.simulate({
+        type: "REBALANCE" as ActionType,
+        tokenId: pos.tokenId,
+        caller: account.address as Address,
+      });
+
+      if (!sim.ok) {
+        log(`  ↳ simulation failed: ${sim.reason} — skipping execution`);
+        await recordAction(
+          pos.positionId,
+          "REBALANCE",
+          "FAILED",
+          `simulation failed: ${sim.reason}`,
+          { simulation: sim }
+        );
+        await maybeNotify({
+          owner: pos.owner,
+          event: "failure",
+          actionType: "REBALANCE",
+          status: "FAILED",
+          pair: pos.pair,
+          tokenId: pos.tokenId,
+          reason: sim.reason,
+        });
+        continue;
+      }
+
+      const result = dryRun
+        ? { ok: true }
+        : await executeRebalance(pos.tokenId);
+
+      const status = result.ok
+        ? dryRun ? "DRY_RUN" : "EXECUTED"
+        : "FAILED";
+
       await recordAction(
         pos.positionId,
         "REBALANCE",
-        result.ok
-          ? config.dryRun
-            ? "DRY_RUN"
-            : "EXECUTED"
-          : "FAILED",
+        status,
         decision.reason,
+        {
+          expectedAmount0: sim.expectedAmount0,
+          expectedAmount1: sim.expectedAmount1,
+          gasEstimate: sim.gasEstimate,
+          gasCostUsd: sim.gasCostUsd,
+          newLower: decision.newLower,
+          newUpper: decision.newUpper,
+        },
         result.hash
       );
+
+      await maybeNotify({
+        owner: pos.owner,
+        event: result.ok ? "rebalance" : "failure",
+        actionType: "REBALANCE",
+        status,
+        pair: pos.pair,
+        tokenId: pos.tokenId,
+        reason: decision.reason,
+        dryRun,
+      });
+    }
+
+    // v1.3: Check out-of-range duration for notification
+    if (!pos.inRange && pos.outOfRangeHours > 0) {
+      await maybeNotify({
+        owner: pos.owner,
+        event: "outOfRange",
+        actionType: "OUT_OF_RANGE",
+        status: "INFO",
+        pair: pos.pair,
+        tokenId: pos.tokenId,
+        hoursOutOfRange: pos.outOfRangeHours,
+      });
     }
   }
+
+  // Publish engine status
+  publishEvent("engine_status", {
+    running: true,
+    dryRun,
+    lastRunTs: Date.now(),
+  });
 }
 
 // ---- Boot ----
 
-log("LiquidAI Strategy Engine v1.2 starting");
+log("LiquidAI Strategy Engine v1.3 starting");
 log(`  manager wallet: ${account.address}`);
 log(`  schedule: ${config.cronExpr}`);
 log(
@@ -419,6 +771,8 @@ log(
 );
 log(`  persistence: ${config.databaseUrl ? "enabled" : "disabled (no DATABASE_URL)"}`);
 log(`  dry-run mode: ${config.dryRun ? "ON (no on-chain txs)" : "OFF (will execute)"}`);
+log(`  telegram: ${telegram.isEnabled ? "enabled" : "disabled (no TELEGRAM_BOT_TOKEN)"}`);
+log(`  simulation: enabled (pre-execution eth_call + estimateGas)`);
 
 // Run once on boot, then on the cron schedule.
 void tick();

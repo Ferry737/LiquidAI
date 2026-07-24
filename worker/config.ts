@@ -1,6 +1,6 @@
 // worker/config.ts
 // Environment-driven configuration for the AI Strategy Engine.
-// v1.2: adds DATABASE_URL for persistence.
+// v1.3: adds TELEGRAM_BOT_TOKEN and SEPOLIA_RPC_URL.
 
 import "dotenv/config";
 
@@ -15,7 +15,7 @@ function num(v: string | undefined, def: number): number {
 }
 
 export const config = {
-  rpc: process.env.SEPOLIA_RPC || "https://rpc.sepolia.org",
+  rpc: process.env.SEPOLIA_RPC || process.env.SEPOLIA_RPC_URL || "https://rpc.sepolia.org",
   privateKey: (process.env.WORKER_PRIVATE_KEY ||
     "0x0000000000000000000000000000000000000000000000000000000000000000") as `0x${string}`,
   killSwitch: bool(process.env.STRATEGY_KILL_SWITCH, false),
@@ -29,4 +29,6 @@ export const config = {
   chainId: num(process.env.CHAIN_ID, 11155111),
   // When true (default), log all decisions as DRY_RUN without executing on-chain.
   dryRun: bool(process.env.WORKER_DRY_RUN, true),
+  // v1.3: Telegram bot token for notifications
+  telegramBotToken: process.env.TELEGRAM_BOT_TOKEN || "",
 };

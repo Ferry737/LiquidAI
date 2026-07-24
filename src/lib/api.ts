@@ -1,5 +1,6 @@
 // src/lib/api.ts
 // Typed fetch layer for the LiquidAI backend.
+// v1.3: adds Notification + Engine API functions.
 
 import type {
   AnalyticsResponse,
@@ -9,6 +10,8 @@ import type {
   ProtocolStats,
   RankedPool,
   StrategyConfigDto,
+  NotificationSettingDto,
+  EngineStateDto,
 } from "../../shared/types";
 
 const API_BASE =
@@ -17,6 +20,8 @@ const API_BASE =
 export type {
   AnalyticsResponse,
   ApiPosition,
+  EngineStateDto,
+  NotificationSettingDto,
   PaginatedActions,
   PoolDetail,
   ProtocolStats,
@@ -63,6 +68,28 @@ async function apiPut<T>(path: string, body: unknown): Promise<T> {
     method: "PUT",
     headers: { "content-type": "application/json", accept: "application/json" },
     body: JSON.stringify(body),
+    cache: "no-store",
+  });
+  if (!res.ok) {
+    let code = "HTTP_ERROR";
+    let message = `API ${res.status}`;
+    try {
+      const errBody = (await res.json()) as { error?: string; code?: string };
+      if (errBody.error) message = errBody.error;
+      if (errBody.code) code = errBody.code;
+    } catch {
+      // non-JSON error body
+    }
+    throw new ApiClientError(res.status, code, message);
+  }
+  return (await res.json()) as T;
+}
+
+async function apiPost<T>(path: string, body?: unknown): Promise<T> {
+  const res = await fetch(`${API_BASE}${path}`, {
+    method: "POST",
+    headers: { "content-type": "application/json", accept: "application/json" },
+    body: body ? JSON.stringify(body) : undefined,
     cache: "no-store",
   });
   if (!res.ok) {
@@ -129,5 +156,46 @@ export function fetchActions(
 ): Promise<PaginatedActions> {
   return apiGet<PaginatedActions>(
     `/api/positions/${encodeURIComponent(positionId)}/actions?page=${page}&pageSize=${pageSize}`
+  );
+}
+
+// ---- v1.3 Engine API ----
+
+export function fetchEngineState(): Promise<EngineStateDto> {
+  return apiGet<EngineStateDto>(`/api/engine`);
+}
+
+export function updateEngineState(patch: {
+  running?: boolean;
+  dryRun?: boolean;
+}): Promise<EngineStateDto> {
+  return apiPut<EngineStateDto>(`/api/engine`, patch);
+}
+
+// ---- v1.3 Notifications API ----
+
+export function fetchNotifications(
+  owner: string
+): Promise<NotificationSettingDto> {
+  return apiGet<NotificationSettingDto>(
+    `/api/notifications/${encodeURIComponent(owner)}`
+  );
+}
+
+export function updateNotifications(
+  owner: string,
+  patch: Partial<Omit<NotificationSettingDto, "owner" | "updatedAt">>
+): Promise<NotificationSettingDto> {
+  return apiPut<NotificationSettingDto>(
+    `/api/notifications/${encodeURIComponent(owner)}`,
+    patch
+  );
+}
+
+export function sendTestNotification(
+  owner: string
+): Promise<{ ok: boolean; error?: string }> {
+  return apiPost<{ ok: boolean; error?: string }>(
+    `/api/notifications/${encodeURIComponent(owner)}/test`
   );
 }

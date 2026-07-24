@@ -2,7 +2,7 @@
 
 Rule-based AI manager for Uniswap v3 liquidity on **Ethereum Sepolia** (testnet only).
 
-## Run v1.2
+## Run v1.3
 
 ```bash
 cp .env.example .env.local && cp .env.example .env && cp .env.example server/.env
@@ -13,4 +13,10 @@ npm run dev        # web → :3000 · api → :4000 (health: /health)
 
 `npm run worker` runs the AI strategy cron engine (dry-run by default).
 
-Stack: Next.js 14 App Router · TypeScript strict · Tailwind · wagmi v2 + viem · @uniswap/v3-sdk · Recharts · node-cron worker · **Fastify API** with Zod-validated Uniswap subgraph + DefiLlama clients, TTL cache, rate limiting, typed errors · **Prisma + Postgres** persistence (v1.2) with per-position strategy configs, snapshot history, and an action log · **Vitest** test suite (strategy matrix, zod schemas, client parsing) · **GitLab CI** (lint → typecheck → test, parallel web/server jobs).
+### v1.3 notes
+
+1. **Telegram alerts**: create a bot via [@BotFather](https://t.me/BotFather) (`/newbot`), copy the token into `TELEGRAM_BOT_TOKEN`, then open Settings → enter your chat ID (from [@userinfobot](https://t.me/userinfobot)) and send a test message.
+2. **Dry-run toggle**: the header Live/Dry Run switch controls the engine globally. In Dry Run mode the worker simulates every transaction (eth_call + estimateGas) and logs actions as `DRY_RUN` without sending transactions. Switching to Live shows a confirmation modal.
+3. **Real-time feed**: the dashboard streams position status and strategy actions over SSE (`/api/stream`) — in/out-of-range pills and value counters update live, and the Engine Feed panel shows each action as it happens.
+
+Stack: Next.js 14 App Router · TypeScript strict · Tailwind · wagmi v2 + viem · @uniswap/v3-sdk · Recharts · node-cron worker · **Fastify API** with Zod-validated Uniswap subgraph + DefiLlama clients, TTL cache, rate limiting, typed errors · **Prisma + Postgres** persistence with per-position strategy configs, snapshot history, action log, notification settings, and engine state (v1.3) · **SSE real-time layer** with EventBus pub/sub and auto-reconnect (v1.3) · **Telegram Bot API** alerts with per-event gating (v1.3) · **SimulationService** pre-execution eth_call + estimateGas with gas-cost estimation (v1.3) · **Vitest** test suite (strategy matrix, zod schemas, client parsing, v1.3 EventBus/SSE/Telegram/Simulation/Notification tests) · **GitLab CI** (lint → typecheck → test, parallel web/server jobs).

@@ -1,6 +1,6 @@
 // server/prisma/schema.prisma
 // LiquidAI persistence layer — Postgres via Prisma.
-// Four models: Position, PositionSnapshot, StrategyConfig, StrategyAction.
+// v1.3: adds NotificationSetting + EngineState models.
 
 generator client {
   provider = "prisma-client-js"
@@ -94,4 +94,32 @@ enum ActionStatus {
   EXECUTED
   FAILED
   DRY_RUN
+}
+
+// ---- v1.3: Telegram notification preferences ----
+
+model NotificationSetting {
+  id              String   @id @default(cuid())
+  owner           String   @unique
+  telegramChatId  String?
+  enabled         Boolean  @default(false)
+  onRebalance     Boolean  @default(true)
+  onCompound      Boolean  @default(true)
+  onStopLoss      Boolean  @default(true)
+  onFailure       Boolean  @default(true)
+  onOutOfRangeHrs Float?
+  updatedAt       DateTime @updatedAt
+
+  @@map("notification_settings")
+}
+
+// ---- v1.3: Engine state singleton (dry-run toggle, running flag) ----
+
+model EngineState {
+  id        String   @id @default("singleton")
+  running   Boolean  @default(true)
+  dryRun    Boolean  @default(true)
+  updatedAt DateTime @updatedAt
+
+  @@map("engine_states")
 }

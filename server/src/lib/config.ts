@@ -23,6 +23,13 @@ const EnvSchema = z.object({
       (v) => !v || v.startsWith("postgres"),
       "DATABASE_URL must be a postgres:// connection string"
     ),
+  // v1.3: Telegram Bot API
+  TELEGRAM_BOT_TOKEN: z.string().optional(),
+  // v1.3: Sepolia RPC for simulation service
+  SEPOLIA_RPC_URL: z
+    .string()
+    .url()
+    .default("https://rpc.sepolia.org"),
 });
 
 export type AppConfig = z.infer<typeof EnvSchema>;
