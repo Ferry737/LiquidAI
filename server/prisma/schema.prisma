@@ -2,6 +2,9 @@
 // LiquidAI persistence layer — Postgres via Prisma.
 // v1.3: adds NotificationSetting + EngineState models.
 // v1.4: adds PoolHourData (cached hourly pool data for backtesting) + Backtest.
+// v1.6: multi-chain — chainId on PoolHourData, Backtest, StrategyAction,
+//       PositionSnapshot (Position already had it); unique keys include
+//       chainId. Adds PositionDailySnapshot (retention aggregation).
 
 generator client {
   provider = "prisma-client-js"
@@ -28,6 +31,7 @@ model Position {
   closedAt   DateTime?
 
   snapshots      PositionSnapshot[]
+  dailySnapshots PositionDailySnapshot[]
   strategyConfig StrategyConfig?
   actions        StrategyAction[]
 
@@ -39,6 +43,7 @@ model Position {
 model PositionSnapshot {
   id               String   @id @default(cuid())
   positionId       String
+  chainId          Int      @default(11155111)
   ts               DateTime @default(now())
   liquidity        String
   amount0          String
@@ -51,7 +56,33 @@ model PositionSnapshot {
   position Position @relation(fields: [positionId], references: [id], onDelete: Cascade)
 
   @@index([positionId, ts])
+  @@index([chainId, ts])
   @@map("position_snapshots")
+}
+
+// ---- v1.6: Daily aggregate of PositionSnapshots (retention) ----
+
+model PositionDailySnapshot {
+  id                  String   @id @default(cuid())
+  positionId          String
+  chainId             Int      @default(11155111)
+  /// UTC midnight of the aggregated day.
+  day                 DateTime
+  avgValueUsd         Float
+  minValueUsd         Float
+  maxValueUsd         Float
+  avgUnclaimedFeesUsd Float
+  maxUnclaimedFeesUsd Float
+  avgIlPct            Float
+  /// Fraction of the day's snapshots that were in range (0..1).
+  inRangeRatio        Float
+  sampleCount         Int
+
+  position Position @relation(fields: [positionId], references: [id], onDelete: Cascade)
+
+  @@unique([positionId, day])
+  @@index([chainId, day])
+  @@map("position_daily_snapshots")
 }
 
 model StrategyConfig {
@@ -72,6 +103,7 @@ model StrategyConfig {
 model StrategyAction {
   id          String   @id @default(cuid())
   positionId  String
+  chainId     Int      @default(11155111)
   ts          DateTime @default(now())
   type        ActionType
   status      ActionStatus
@@ -81,6 +113,7 @@ model StrategyAction {
   position Position @relation(fields: [positionId], references: [id], onDelete: Cascade)
 
   @@index([positionId, ts])
+  @@index([chainId, ts])
   @@map("strategy_actions")
 }
 
@@ -130,6 +163,7 @@ model EngineState {
 model PoolHourData {
   id        String   @id @default(cuid())
   poolId    String
+  chainId   Int      @default(11155111)
   ts        DateTime
   price     Float
   tick      Int
@@ -137,8 +171,8 @@ model PoolHourData {
   volumeUsd Float
   feesUsd   Float
 
-  @@unique([poolId, ts])
-  @@index([poolId, ts])
+  @@unique([chainId, poolId, ts])
+  @@index([chainId, poolId, ts])
   @@map("pool_hour_data")
 }
 
@@ -148,6 +182,7 @@ model Backtest {
   id         String   @id @default(cuid())
   owner      String
   poolId     String
+  chainId    Int      @default(11155111)
   from       DateTime
   to         DateTime
   paramsJson String
@@ -155,6 +190,6 @@ model Backtest {
   createdAt  DateTime @default(now())
 
   @@index([owner, createdAt])
-  @@index([poolId])
+  @@index([chainId, poolId])
   @@map("backtests")
 }

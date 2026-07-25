@@ -1,6 +1,8 @@
 // src/components/Nav.tsx
 // v1.3: adds Settings link and Engine Toggle.
 // v1.4: adds Backtest link, SIWE Sign-in button, and auth-gated engine toggle.
+// v1.6: adds chain switcher (glass dropdown) + Status link; the hardcoded
+// "Sepolia" pill is replaced by the registry-driven switcher.
 
 "use client";
 
@@ -12,6 +14,7 @@ import { ConnectButton } from "./ConnectButton";
 import { SignInButton } from "./auth/SignInButton";
 import { useAuth } from "./auth/AuthProvider";
 import { EngineToggle } from "./dashboard/EngineToggle";
+import { ChainSwitcher } from "./chain/ChainSwitcher";
 import { fetchEngineState, updateEngineState } from "@/lib/api";
 
 const LINKS = [
@@ -20,6 +23,7 @@ const LINKS = [
   { href: "/create", label: "Create" },
   { href: "/backtest", label: "Backtest" },
   { href: "/analytics", label: "Analytics" },
+  { href: "/status", label: "Status" },
   { href: "/settings", label: "Settings" },
 ];
 
@@ -85,8 +89,9 @@ export function Nav() {
             />
           </div>
           <span className="hidden rounded-full border border-white/10 px-3 py-1 text-xs text-white/50 sm:inline">
-            Sepolia
+            Testnets
           </span>
+          <ChainSwitcher />
           <SignInButton />
           <ConnectButton />
         </div>

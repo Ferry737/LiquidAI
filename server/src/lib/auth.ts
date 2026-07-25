@@ -243,8 +243,21 @@ export async function readSession(
  * Resolve the session from the request and attach it to `req.session`.
  * Called as a global preHandler — always runs, never rejects (public routes
  * just get session=null).
+ *
+ * v1.6: E2E mock mode (MOCK_CHAIN + NODE_ENV=test ONLY — config.mockChain is
+ * hard-false otherwise) injects a stub session so Playwright specs can hit
+ * auth-guarded routes without a real wallet.
  */
 async function sessionResolver(req: FastifyRequest, _reply: FastifyReply) {
+  if (config.mockChain) {
+    const now = Date.now();
+    req.session = {
+      address: "0x00000000000000000000000000000000000e2e00",
+      authenticatedAt: now,
+      expiresAt: now + 3_600_000,
+    };
+    return;
+  }
   req.session = await readSession(req);
 }
 

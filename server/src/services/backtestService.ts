@@ -1,14 +1,17 @@
 // server/src/services/backtestService.ts
 // v1.4: Orchestrates backtest execution — fetches data via HistoryService,
 // runs the pure backtester, persists results.
+// v1.6: chain-aware.
 
-import type { BacktestConfig, BacktestDto, CreateBacktestInput } from "../../../shared/types";
+import type { BacktestConfig, BacktestDto } from "../../../shared/types";
 import { runBacktest as computeBacktest } from "./backtester";
 import { getPoolHourData } from "./historyService";
 import { getDb, hasDatabase } from "../lib/db";
+import { CHAINS, type ChainSlug } from "../../../shared/chains";
 
 export interface BacktestParams {
   owner: string;
+  chain: ChainSlug;
   poolId: string;
   from: number;
   to: number;
@@ -22,7 +25,12 @@ export interface BacktestParams {
  */
 export async function runBacktestAndPersist(params: BacktestParams): Promise<BacktestDto> {
   // Fetch hourly data.
-  const bars = await getPoolHourData(params.poolId, params.from, params.to);
+  const bars = await getPoolHourData(
+    params.chain,
+    params.poolId,
+    params.from,
+    params.to
+  );
 
   // Run the pure backtester.
   const result = computeBacktest({
@@ -33,6 +41,7 @@ export async function runBacktestAndPersist(params: BacktestParams): Promise<Bac
   });
 
   const paramsJson = JSON.stringify({
+    chain: params.chain,
     initialUsd: params.initialUsd,
     rangeWidthPct: params.rangeWidthPct,
     config: params.config,
@@ -46,6 +55,7 @@ export async function runBacktestAndPersist(params: BacktestParams): Promise<Bac
       data: {
         owner: params.owner.toLowerCase(),
         poolId: params.poolId.toLowerCase(),
+        chainId: CHAINS[params.chain].chainId,
         from: new Date(params.from),
         to: new Date(params.to),
         paramsJson,

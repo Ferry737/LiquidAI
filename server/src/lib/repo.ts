@@ -58,6 +58,8 @@ export async function upsertPosition(
 
 export interface SnapshotInput {
   positionId: string;
+  /** v1.6: chain of the underlying position (default sepolia). */
+  chainId?: number;
   liquidity: string;
   amount0: string;
   amount1: string;
@@ -71,7 +73,9 @@ export async function insertSnapshot(
   input: SnapshotInput
 ): Promise<PositionSnapshotDto> {
   const db = getDb();
-  const row = await db.positionSnapshot.create({ data: input });
+  const row = await db.positionSnapshot.create({
+    data: { ...input, chainId: input.chainId ?? 11155111 },
+  });
   return snapshotToDto(row);
 }
 
@@ -139,6 +143,8 @@ export async function ensureStrategyConfig(
 
 export interface ActionInput {
   positionId: string;
+  /** v1.6: chain the action executed on (default sepolia). */
+  chainId?: number;
   type: StrategyActionType;
   status: StrategyActionStatus;
   txHash?: string | null;
@@ -152,6 +158,7 @@ export async function insertAction(
   const row = await db.strategyAction.create({
     data: {
       positionId: input.positionId,
+      chainId: input.chainId ?? 11155111,
       type: input.type,
       status: input.status,
       txHash: input.txHash ?? null,
@@ -341,6 +348,7 @@ export async function updateEngineState(patch: {
 function snapshotToDto(row: {
   id: string;
   positionId: string;
+  chainId: number;
   ts: Date;
   liquidity: string;
   amount0: string;
@@ -353,6 +361,7 @@ function snapshotToDto(row: {
   return {
     id: row.id,
     positionId: row.positionId,
+    chainId: row.chainId,
     ts: row.ts.getTime(),
     liquidity: row.liquidity,
     amount0: row.amount0,
@@ -387,6 +396,7 @@ function configToDto(row: {
 function actionToDto(row: {
   id: string;
   positionId: string;
+  chainId: number;
   ts: Date;
   type: StrategyActionType;
   status: StrategyActionStatus;
@@ -396,6 +406,7 @@ function actionToDto(row: {
   return {
     id: row.id,
     positionId: row.positionId,
+    chainId: row.chainId,
     ts: row.ts.getTime(),
     type: row.type,
     status: row.status,

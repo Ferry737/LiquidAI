@@ -1,5 +1,6 @@
 // src/components/Providers.tsx
 // v1.4: wraps the app in AuthProvider (SIWE session context).
+// v1.6: adds ChainProvider (active-chain context for multi-chain UI).
 
 "use client";
 
@@ -8,6 +9,7 @@ import { WagmiProvider } from "wagmi";
 import { useState, type ReactNode } from "react";
 import { wagmiConfig } from "@/lib/wagmi";
 import { AuthProvider } from "@/components/auth/AuthProvider";
+import { ChainProvider } from "@/components/chain/ChainProvider";
 
 export function Providers({ children }: { children: ReactNode }) {
   const [queryClient] = useState(
@@ -20,7 +22,9 @@ export function Providers({ children }: { children: ReactNode }) {
   return (
     <WagmiProvider config={wagmiConfig}>
       <QueryClientProvider client={queryClient}>
-        <AuthProvider>{children}</AuthProvider>
+        <AuthProvider>
+          <ChainProvider>{children}</ChainProvider>
+        </AuthProvider>
       </QueryClientProvider>
     </WagmiProvider>
   );

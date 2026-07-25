@@ -1,9 +1,14 @@
 // server/src/services/positions.ts
 // Positions by owner from the subgraph, enriched with fee + IL estimates.
+// v1.6: chain-aware — takes a ChainSlug, uses the per-chain client.
 
 import type { ApiPosition } from "../../../shared/types";
-import { uniswapClient, type SubgraphPosition } from "../clients/uniswap";
+import type { SubgraphPosition } from "../clients/uniswap";
+import { chainClients } from "../lib/chainClients";
 import { cache, TTL } from "../lib/cache";
+import { config } from "../lib/config";
+import { mockPositions } from "../lib/mockData";
+import type { ChainSlug } from "../../../shared/chains";
 
 const Q96 = 2 ** 96;
 
@@ -81,10 +86,16 @@ function toApiPosition(pos: SubgraphPosition): ApiPosition {
   };
 }
 
-export async function getPositions(address: string): Promise<ApiPosition[]> {
-  const key = `positions:${address.toLowerCase()}`;
+export async function getPositions(
+  chain: ChainSlug,
+  address: string
+): Promise<ApiPosition[]> {
+  if (config.mockChain) return mockPositions(chain);
+  const key = `positions:${chain}:${address.toLowerCase()}`;
   return cache.getOrSet(key, TTL.POSITIONS_MS, async () => {
-    const positions = await uniswapClient.positionsByOwner(address);
+    const positions = await chainClients
+      .uniswap(chain)
+      .positionsByOwner(address);
     return positions.map(toApiPosition);
   });
 }

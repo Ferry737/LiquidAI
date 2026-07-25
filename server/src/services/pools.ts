@@ -1,22 +1,24 @@
 // server/src/services/pools.ts
 // Merges Uniswap subgraph pool data with DefiLlama yields; computes fee APR
 // and the "verified APY" agreement flag.
+// v1.6: chain-aware — every entry point takes a ChainSlug and uses the
+// per-chain client from the ChainClientFactory.
 
 import type {
   PoolDayPoint,
   PoolDetail,
   RankedPool,
 } from "../../../shared/types";
-import { uniswapClient, type SubgraphPool } from "../clients/uniswap";
+import type { SubgraphPool } from "../clients/uniswap";
 import { defiLlamaClient, type YieldPool } from "../clients/defillama";
+import { chainClients } from "../lib/chainClients";
 import { cache, TTL } from "../lib/cache";
 import { NotFoundError, UpstreamError } from "../lib/errors";
+import { config } from "../lib/config";
+import { CHAINS, type ChainSlug } from "../../../shared/chains";
+import { mockPools, mockPoolDetail } from "../lib/mockData";
 
 const VERIFY_TOLERANCE = 0.15; // 15%
-
-function pairKey(sym0: string, sym1: string): string {
-  return [sym0.toUpperCase(), sym1.toUpperCase()].sort().join("-");
-}
 
 function normalizeSymbol(s: string): string {
   return s.toUpperCase().replace(/^WETH$/, "ETH");
@@ -91,16 +93,21 @@ function toRankedPool(
   };
 }
 
-async function getYieldIndex(): Promise<Map<string, YieldPool>> {
-  return cache.getOrSet("llama:yields:index", TTL.YIELDS_MS, async () => {
-    try {
-      const yields = await defiLlamaClient.uniswapYields("Ethereum");
-      return buildYieldIndex(yields);
-    } catch {
-      // Yields are enrichment, not core data — degrade gracefully.
-      return new Map<string, YieldPool>();
+async function getYieldIndex(chain: ChainSlug): Promise<Map<string, YieldPool>> {
+  const llamaChain = CHAINS[chain].defillamaChainSlug;
+  return cache.getOrSet(
+    `llama:yields:index:${llamaChain}`,
+    TTL.YIELDS_MS,
+    async () => {
+      try {
+        const yields = await defiLlamaClient.uniswapYields(llamaChain);
+        return buildYieldIndex(yields);
+      } catch {
+        // Yields are enrichment, not core data — degrade gracefully.
+        return new Map<string, YieldPool>();
+      }
     }
-  });
+  );
 }
 
 function parseFeeTier(poolMeta: string | null | undefined): number {
@@ -114,8 +121,13 @@ function parseFeeTier(poolMeta: string | null | undefined): number {
  * API key configured): build the ranked list from real DefiLlama yields data.
  * Still live external data — never mocks.
  */
-async function rankedPoolsFromLlama(first: number): Promise<RankedPool[]> {
-  const yields = await defiLlamaClient.uniswapYields("Ethereum");
+async function rankedPoolsFromLlama(
+  chain: ChainSlug,
+  first: number
+): Promise<RankedPool[]> {
+  const yields = await defiLlamaClient.uniswapYields(
+    CHAINS[chain].defillamaChainSlug
+  );
   return yields
     .filter((y) => y.symbol.split("-").length === 2 && y.tvlUsd > 0)
     .sort((a, b) => b.tvlUsd - a.tvlUsd)
@@ -153,27 +165,39 @@ async function rankedPoolsFromLlama(first: number): Promise<RankedPool[]> {
     });
 }
 
-export async function getRankedPools(first = 25): Promise<RankedPool[]> {
-  return cache.getOrSet(`pools:top:${first}`, TTL.POOLS_MS, async () => {
+export async function getRankedPools(
+  chain: ChainSlug,
+  first = 25
+): Promise<RankedPool[]> {
+  if (config.mockChain) return mockPools(chain).slice(0, first);
+  return cache.getOrSet(`pools:top:${chain}:${first}`, TTL.POOLS_MS, async () => {
     try {
       const [pools, yieldIndex] = await Promise.all([
-        uniswapClient.topPools(first),
-        getYieldIndex(),
+        chainClients.uniswap(chain).topPools(first),
+        getYieldIndex(chain),
       ]);
       return pools.map((p) => toRankedPool(p, yieldIndex));
     } catch (err) {
-      if (err instanceof UpstreamError) return rankedPoolsFromLlama(first);
+      if (err instanceof UpstreamError) return rankedPoolsFromLlama(chain, first);
       throw err;
     }
   });
 }
 
-export async function getPoolDetail(id: string): Promise<PoolDetail> {
-  return cache.getOrSet(`pools:detail:${id}`, TTL.POOLS_MS, async () => {
+export async function getPoolDetail(
+  chain: ChainSlug,
+  id: string
+): Promise<PoolDetail> {
+  if (config.mockChain) {
+    const detail = mockPoolDetail(chain, id);
+    if (!detail) throw new NotFoundError(`pool ${id} not found`);
+    return detail;
+  }
+  return cache.getOrSet(`pools:detail:${chain}:${id}`, TTL.POOLS_MS, async () => {
     let pool;
     try {
-      const yieldIndexP = getYieldIndex();
-      pool = await uniswapClient.poolById(id);
+      const yieldIndexP = getYieldIndex(chain);
+      pool = await chainClients.uniswap(chain).poolById(id);
       if (!pool) throw new NotFoundError(`pool ${id} not found`);
 
       const ranked = toRankedPool(pool, await yieldIndexP);
@@ -191,7 +215,7 @@ export async function getPoolDetail(id: string): Promise<PoolDetail> {
     } catch (err) {
       if (!(err instanceof UpstreamError)) throw err;
       // Subgraph down: serve the DefiLlama-derived pool (no 7d series).
-      const fallback = (await rankedPoolsFromLlama(100)).find(
+      const fallback = (await rankedPoolsFromLlama(chain, 100)).find(
         (p) => p.id.toLowerCase() === id.toLowerCase()
       );
       if (!fallback) throw new NotFoundError(`pool ${id} not found`);

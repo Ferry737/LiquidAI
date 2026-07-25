@@ -1,6 +1,8 @@
 // server/src/services/analytics.ts
-// v1.2: Analytics now reads from DB history (PositionSnapshot table) instead
-// of in-memory state. Degrades to zeros when the DB is unavailable.
+// v1.2: Analytics reads from DB history (PositionSnapshot table).
+// v1.6: transparently merges PositionDailySnapshot aggregates (retention)
+// with raw hourly snapshots — long windows keep working after old raw
+// snapshots are rolled up and deleted.
 
 import type {
   AnalyticsPointDto,
@@ -14,7 +16,7 @@ import {
   getTotalSnapshotCount,
   getLatestSnapshotsAll,
 } from "../lib/repo";
-import { hasDatabase } from "../lib/db";
+import { getDb, hasDatabase } from "../lib/db";
 
 /**
  * Build the analytics response from persisted snapshots.
@@ -27,17 +29,75 @@ export async function getAnalytics(
     return { summary: emptySummary(), series: [] };
   }
 
-  const [latest, series, snapshotCount, totalPositions] = await Promise.all([
-    getLatestSnapshotsAll(),
-    getSnapshotSeries(hours),
-    getTotalSnapshotCount(),
-    getTotalPositionCount(),
-  ]);
+  const [latest, series, dailyPoints, snapshotCount, totalPositions] =
+    await Promise.all([
+      getLatestSnapshotsAll(),
+      getSnapshotSeries(hours),
+      getDailySeriesPoints(hours),
+      getTotalSnapshotCount(),
+      getTotalPositionCount(),
+    ]);
 
   const summary = buildSummary(latest, snapshotCount, totalPositions);
-  const seriesAgg = aggregateSeries(series);
+  const hourlyAgg = aggregateSeries(series);
 
-  return { summary, series: seriesAgg };
+  // v1.6: prepend daily aggregates that predate the earliest raw snapshot —
+  // the two sources never overlap because retention deletes raw rows it
+  // rolled up.
+  const earliestHourly = hourlyAgg.length ? hourlyAgg[0].ts : Infinity;
+  const merged = [
+    ...dailyPoints.filter((p) => p.ts < earliestHourly),
+    ...hourlyAgg,
+  ];
+
+  return { summary, series: merged };
+}
+
+/**
+ * v1.6: Read PositionDailySnapshot rows in the window and shape them as
+ * AnalyticsPointDto (one point per day, summed across positions).
+ */
+async function getDailySeriesPoints(
+  hours: number
+): Promise<AnalyticsPointDto[]> {
+  const db = getDb();
+  const since = new Date(Date.now() - hours * 3_600_000);
+  const rows = await db.positionDailySnapshot.findMany({
+    where: { day: { gte: since } },
+    orderBy: { day: "asc" },
+  });
+  if (rows.length === 0) return [];
+
+  const buckets = new Map<
+    number,
+    { totalValue: number; totalFees: number; ilSum: number; count: number }
+  >();
+  for (const r of rows) {
+    const ts = r.day.getTime();
+    const b = buckets.get(ts);
+    if (b) {
+      b.totalValue += r.avgValueUsd;
+      b.totalFees += r.avgUnclaimedFeesUsd;
+      b.ilSum += r.avgIlPct;
+      b.count++;
+    } else {
+      buckets.set(ts, {
+        totalValue: r.avgValueUsd,
+        totalFees: r.avgUnclaimedFeesUsd,
+        ilSum: r.avgIlPct,
+        count: 1,
+      });
+    }
+  }
+
+  return Array.from(buckets.entries())
+    .sort(([a], [b]) => a - b)
+    .map(([ts, agg]) => ({
+      ts,
+      totalValueUsd: agg.totalValue,
+      totalFeesUsd: agg.totalFees,
+      avgIlPct: agg.count > 0 ? agg.ilSum / agg.count : 0,
+    }));
 }
 
 function emptySummary(): AnalyticsSummaryDto {

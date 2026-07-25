@@ -5,6 +5,8 @@ import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { runBacktest, getBacktestHistory, getBacktestById } from "../services/backtestService";
 import { BadRequestError, NotFoundError } from "../lib/errors";
+import { chainClients } from "../lib/chainClients";
+import { CHAIN_SLUGS, DEFAULT_CHAIN_SLUG } from "../../../shared/chains";
 import type { BacktestConfig } from "../../../shared/types";
 
 const ConfigSchema = z.object({
@@ -16,6 +18,7 @@ const ConfigSchema = z.object({
 
 const CreateBodySchema = z.object({
   poolId: z.string().regex(/^0x[a-fA-F0-9]{40}$/, "invalid pool address"),
+  chain: z.enum(CHAIN_SLUGS).default(DEFAULT_CHAIN_SLUG),
   from: z.number().int().positive(),
   to: z.number().int().positive(),
   initialUsd: z.number().min(1).max(10_000_000),
@@ -48,8 +51,11 @@ export async function backtestRoutes(app: FastifyInstance): Promise<void> {
       stopLossIlPct: body.data.config.stopLossIlPct,
     };
 
+    chainClients.assertEnabled(body.data.chain);
+
     return runBacktest({
       owner: req.session!.address,
+      chain: body.data.chain,
       poolId: body.data.poolId,
       from: body.data.from,
       to: body.data.to,

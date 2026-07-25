@@ -31,6 +31,7 @@ import {
 } from "@/lib/api";
 import { PRESETS } from "../../../shared/presets";
 import type { PresetName, StrategyPreset } from "../../../shared/types";
+import { useChain } from "@/components/chain/ChainProvider";
 import { cn, formatUSD, formatPct } from "@/lib/utils";
 
 const PRESET_COLORS: Record<PresetName, string> = {
@@ -53,6 +54,7 @@ function toDateInput(ms: number): string {
 export function Backtest() {
   const { data: pools, isLoading: poolsLoading } = usePools();
   const { isAuthenticated } = useAuth();
+  const { chain } = useChain();
 
   const [poolId, setPoolId] = useState("");
   const [from, setFrom] = useState(() => toDateInput(Date.now() - 30 * DAY_MS));
@@ -81,6 +83,7 @@ export function Backtest() {
         PRESETS.map(async (preset) => {
           const input: CreateBacktestInput = {
             poolId,
+            chain,
             from: fromMs,
             to: toMs,
             initialUsd,
@@ -103,6 +106,7 @@ export function Backtest() {
     mutationFn: async () => {
       const input: CreateBacktestInput = {
         poolId,
+        chain,
         from: new Date(from).getTime(),
         to: new Date(to).getTime(),
         initialUsd,

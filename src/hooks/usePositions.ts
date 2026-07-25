@@ -5,20 +5,23 @@ import { useQuery } from "@tanstack/react-query";
 import { useAccount } from "wagmi";
 import { fetchPositions } from "@/lib/api";
 import { DEMO_POSITIONS, toView, type PositionView } from "@/lib/positions";
+import { useChain } from "@/components/chain/ChainProvider";
 
 // v1.1: live positions come from the backend (/api/positions/:address),
 // which reads the Uniswap v3 subgraph and adds fee + IL estimates.
 // A fresh testnet wallet with zero positions falls back to the deterministic
 // demo set so the dashboard is never an empty shell.
+// v1.6: chain-aware.
 export function usePositions() {
   const { address } = useAccount();
+  const { chain } = useChain();
 
   return useQuery<PositionView[]>({
-    queryKey: ["positions", address ?? "demo"],
+    queryKey: ["positions", address ?? "demo", chain],
     queryFn: async () => {
       if (address) {
         try {
-          const live = await fetchPositions(address);
+          const live = await fetchPositions(address, chain);
           if (live.length > 0) {
             return live.map(
               (p): PositionView => ({

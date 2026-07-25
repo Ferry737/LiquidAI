@@ -2,6 +2,8 @@
 // Single source of truth for API contracts shared by /server, /worker, and the
 // Next.js app.
 // v1.4: adds SessionInfo (SIWE auth), BacktestResult/BacktestDto, StrategyPreset.
+// v1.6: multi-chain (chainId on events/DTOs), status/health DTOs, daily
+// snapshot DTO for retention-aware analytics.
 
 export interface PoolToken {
   id: string;
@@ -98,6 +100,8 @@ export type StrategyActionStatus = "EXECUTED" | "FAILED" | "DRY_RUN";
 export interface StrategyActionDto {
   id: string;
   positionId: string;
+  /** v1.6: chain the action executed on. */
+  chainId: number;
   ts: number;
   type: StrategyActionType;
   status: StrategyActionStatus;
@@ -118,6 +122,8 @@ export interface PaginatedActions {
 export interface PositionSnapshotDto {
   id: string;
   positionId: string;
+  /** v1.6 */
+  chainId: number;
   ts: number;
   liquidity: string;
   amount0: string;
@@ -173,6 +179,8 @@ export interface PriceUpdateEvent {
 
 export interface PositionStatusEvent {
   positionId: string;
+  /** v1.6 */
+  chainId: number;
   inRange: boolean;
   valueUsd: number;
   unclaimedFeesUsd: number;
@@ -182,6 +190,8 @@ export interface EngineStatusEvent {
   running: boolean;
   dryRun: boolean;
   lastRunTs: number;
+  /** v1.6: chain this status refers to; undefined = global engine state. */
+  chainId?: number;
 }
 
 /** Discriminated union for all SSE event payloads. */
@@ -286,6 +296,8 @@ export interface BacktestDto {
 /** Input for POST /api/backtests. */
 export interface CreateBacktestInput {
   poolId: string;
+  /** v1.6: chain slug (defaults to sepolia server-side). */
+  chain?: string;
   from: number;
   to: number;
   initialUsd: number;
@@ -303,4 +315,52 @@ export interface StrategyPreset {
   description: string;
   rangeWidthPct: number;
   config: BacktestConfig;
+}
+
+// ---- v1.6: Observability / status ----
+
+export type DependencyStatusValue = "ok" | "degraded" | "down" | "unknown";
+
+export interface DependencyStatusDto {
+  name: string;
+  status: DependencyStatusValue;
+  successCount: number;
+  errorCount: number;
+  lastSuccessTs: number | null;
+  lastErrorTs: number | null;
+  lastError: string | null;
+}
+
+export interface ChainEngineStatusDto {
+  chainId: number;
+  slug: string;
+  name: string;
+  lastRunTs: number | null;
+  lastRunOk: boolean | null;
+  lastError: string | null;
+}
+
+export interface StatusResponse {
+  engine: EngineStateDto;
+  chains: ChainEngineStatusDto[];
+  dependencies: DependencyStatusDto[];
+  ts: number;
+}
+
+// ---- v1.6: Daily snapshot DTO (retention aggregates) ----
+
+export interface PositionDailySnapshotDto {
+  id: string;
+  positionId: string;
+  chainId: number;
+  /** Unix ms of the aggregated day (UTC midnight). */
+  day: number;
+  avgValueUsd: number;
+  minValueUsd: number;
+  maxValueUsd: number;
+  avgUnclaimedFeesUsd: number;
+  maxUnclaimedFeesUsd: number;
+  avgIlPct: number;
+  inRangeRatio: number;
+  sampleCount: number;
 }

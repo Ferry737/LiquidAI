@@ -58,6 +58,7 @@ describe("EventBus", () => {
       data: {
         id: "a1",
         positionId: "p1",
+        chainId: 11155111,
         ts: Date.now(),
         type: "REBALANCE",
         status: "EXECUTED",

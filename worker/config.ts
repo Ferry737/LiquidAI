@@ -1,8 +1,16 @@
 // worker/config.ts
 // Environment-driven configuration for the AI Strategy Engine.
 // v1.3: adds TELEGRAM_BOT_TOKEN and SEPOLIA_RPC_URL.
+// v1.6: multi-chain — enabled chains + per-chain RPC resolved from the
+// shared registry; fail fast on invalid chain env at boot.
 
 import "dotenv/config";
+import {
+  parseEnabledChains,
+  validateChainEnv,
+  type ChainSlug,
+  type ResolvedChainEnv,
+} from "../shared/chains";
 
 function bool(v: string | undefined, def: boolean): boolean {
   if (v === undefined) return def;
@@ -12,6 +20,18 @@ function bool(v: string | undefined, def: boolean): boolean {
 function num(v: string | undefined, def: number): number {
   const n = Number(v);
   return Number.isFinite(n) ? n : def;
+}
+
+// v1.6: chain env validation — same fail-fast contract as the server.
+const { slugs, errors: chainSelErrors } = parseEnabledChains(
+  process.env.CHAINS_ENABLED
+);
+const chainValidation = validateChainEnv(process.env, slugs);
+const chainErrors = [...chainSelErrors, ...chainValidation.errors];
+if (chainErrors.length > 0) {
+  throw new Error(
+    `worker chain env validation failed:\n  - ${chainErrors.join("\n  - ")}`
+  );
 }
 
 export const config = {
@@ -31,4 +51,7 @@ export const config = {
   dryRun: bool(process.env.WORKER_DRY_RUN, true),
   // v1.3: Telegram bot token for notifications
   telegramBotToken: process.env.TELEGRAM_BOT_TOKEN || "",
+  // v1.6: enabled chains + resolved per-chain env
+  enabledChains: slugs as ChainSlug[],
+  chainEnv: chainValidation.resolved as Record<ChainSlug, ResolvedChainEnv>,
 };

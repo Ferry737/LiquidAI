@@ -1,30 +1,27 @@
 // worker/index.ts
-// LiquidAI v1.3 — AI Strategy Engine with SSE, Telegram, simulation, dry-run.
-//
-// Every tick it:
-//   1. Loads managed positions (from DB if available, else demo set)
-//   2. Reads the global EngineState from DB (dryRun can be toggled via API)
-//   3. Fetches live position data (price, fees, IL, range status)
-//   4. Writes a PositionSnapshot to the DB for every position
-//   5. Runs the decision rules (rebalance / auto-compound / stop-loss / hold)
-//   6. Simulates the transaction via SimulationService before executing
-//   7. Writes a StrategyAction for every decision (including SKIPPED)
-//   8. Executes on-chain via NonfungiblePositionManager (or DRY_RUN)
-//   9. Sends Telegram alerts per notification settings (fire-and-forget)
-//  10. Publishes events to the EventBus for SSE subscribers
+// LiquidAI Strategy Engine.
+// v1.3: SSE, Telegram, simulation, dry-run.
+// v1.6: multi-chain — iterates every enabled chain per run with per-chain
+// viem clients from the shared registry. Engine state + dry-run stay GLOBAL;
+// per-chain errors are isolated (one chain failing never stops the others).
+// Every run gets a runId included in all log lines; run duration and action
+// counts are exported as Prometheus metrics.
 //
 // Testnet only. Never point WORKER_PRIVATE_KEY at a mainnet-funded key.
 
 import * as cron from "node-cron";
+import { randomUUID } from "node:crypto";
 import {
   createPublicClient,
   createWalletClient,
   http,
+  defineChain,
   type Hex,
   type Address,
+  type PublicClient,
+  type WalletClient,
 } from "viem";
 import { privateKeyToAccount, generatePrivateKey } from "viem/accounts";
-import { sepolia } from "viem/chains";
 import { PrismaClient } from "@prisma/client";
 
 import { config } from "./config";
@@ -34,15 +31,18 @@ import {
   type DecisionConfig,
   type DecisionPosition,
 } from "../shared/strategy";
+import {
+  CHAINS,
+  type ChainSlug,
+  type ChainInfo,
+} from "../shared/chains";
 import type { StrategyActionType, StrategyActionDto } from "../shared/types";
 import { minOut } from "./strategy";
 import { positionManagerAbi } from "../src/lib/abi";
-import { UNISWAP_V3 } from "../src/lib/constants";
 
 // ---- v1.3 imports ----
 import {
   SimulationService,
-  type SimulationResult,
   type ActionType,
 } from "../server/src/services/simulation";
 import {
@@ -51,6 +51,11 @@ import {
   formatOutOfRangeAlert,
 } from "../server/src/clients/telegram";
 import { eventBus } from "../server/src/lib/eventBus";
+// ---- v1.6 imports ----
+import {
+  workerRunDuration,
+  strategyActionsTotal,
+} from "../server/src/lib/metrics";
 
 // ---- Prisma (optional) ----
 
@@ -64,10 +69,9 @@ function getDb(): PrismaClient | null {
   return prisma;
 }
 
-// ---- v1.3: Engine state from DB ----
+// ---- v1.3: Engine state from DB (GLOBAL across chains) ----
 
 async function getEngineDryRun(): Promise<boolean> {
-  // The global dryRun from DB overrides the env var when available.
   const db = getDb();
   if (!db) return config.dryRun;
   try {
@@ -81,12 +85,7 @@ async function getEngineDryRun(): Promise<boolean> {
   return config.dryRun;
 }
 
-// ---- Viem clients ----
-
-const publicClient = createPublicClient({
-  chain: sepolia,
-  transport: http(config.rpc),
-});
+// ---- v1.6: Per-chain viem clients + simulation services ----
 
 const ZERO_KEY =
   "0x0000000000000000000000000000000000000000000000000000000000000000";
@@ -94,27 +93,55 @@ const activeKey =
   config.privateKey === ZERO_KEY ? generatePrivateKey() : config.privateKey;
 if (config.privateKey === ZERO_KEY) {
   console.warn(
-    "[warn] WORKER_PRIVATE_KEY unset — using an ephemeral testnet key (no funds). Set a real Sepolia key to execute transactions."
+    "[warn] WORKER_PRIVATE_KEY unset — using an ephemeral testnet key (no funds). Set a real testnet key to execute transactions."
   );
 }
-
 const account = privateKeyToAccount(activeKey as `0x${string}`);
-const walletClient = createWalletClient({
-  account,
-  chain: sepolia,
-  transport: http(config.rpc),
-});
 
-// ---- v1.3: Simulation + Telegram clients ----
+interface ChainRuntime {
+  info: ChainInfo;
+  publicClient: PublicClient;
+  walletClient: WalletClient;
+  simulation: SimulationService;
+}
 
-const simulationService = new SimulationService({
-  rpcUrl: config.rpc,
-});
+function buildChainRuntime(slug: ChainSlug): ChainRuntime {
+  const info = CHAINS[slug];
+  const rpcUrl = config.chainEnv[slug].rpcUrl;
+  const viemChain = defineChain({
+    id: info.chainId,
+    name: info.name,
+    nativeCurrency: { name: info.nativeSymbol, symbol: info.nativeSymbol, decimals: 18 },
+    rpcUrls: { default: { http: [rpcUrl] } },
+    blockExplorers: {
+      default: { name: "explorer", url: info.blockExplorerUrl },
+    },
+    testnet: true,
+  });
+  return {
+    info,
+    publicClient: createPublicClient({
+      chain: viemChain,
+      transport: http(rpcUrl),
+    }) as PublicClient,
+    walletClient: createWalletClient({
+      account,
+      chain: viemChain,
+      transport: http(rpcUrl),
+    }),
+    simulation: new SimulationService({ rpcUrl }),
+  };
+}
+
+const chainRuntimes = new Map<ChainSlug, ChainRuntime>(
+  config.enabledChains.map((slug) => [slug, buildChainRuntime(slug)])
+);
 
 const telegram = new TelegramClient(config.telegramBotToken);
 
+let currentRunId = "boot";
 function log(msg: string): void {
-  console.log(`[${new Date().toISOString()}] ${msg}`);
+  console.log(`[${new Date().toISOString()}] [run:${currentRunId}] ${msg}`);
 }
 
 // ---- Position loading ----
@@ -122,6 +149,7 @@ function log(msg: string): void {
 interface ManagedPosition {
   positionId: string;
   tokenId: number;
+  chainId: number;
   pair: string;
   inRange: boolean;
   outOfRangeHours: number;
@@ -139,65 +167,68 @@ interface ManagedPosition {
 }
 
 /**
- * Load positions from the DB (if persistence is configured) or fall back to
- * the demo working set. In production this would merge DB positions with live
- * on-chain data from NonfungiblePositionManager.positions().
+ * Load positions for one chain from the DB (if persistence is configured) or
+ * fall back to the demo working set (sepolia only, so demo data doesn't
+ * multiply per chain).
  */
-async function loadPositions(): Promise<ManagedPosition[]> {
-  const now = Date.now();
-  const demoSet: ManagedPosition[] = [
-    {
-      positionId: "demo-1",
-      tokenId: 10241,
-      pair: "WETH/USDC",
-      inRange: true,
-      outOfRangeHours: 0,
-      unclaimedFeesUSD: 42.18,
-      ilPct: -0.5,
-      currentPrice: 3180,
-      lowerPrice: 2900,
-      upperPrice: 3400,
-      liquidity: "1200000000000000000",
-      amount0: "2.1",
-      amount1: "6700",
-      valueUSD: 12_450,
-      owner: "demo",
-    },
-    {
-      positionId: "demo-2",
-      tokenId: 10388,
-      pair: "WETH/DAI",
-      inRange: false,
-      outOfRangeHours: 8,
-      unclaimedFeesUSD: 11.9,
-      ilPct: -2.3,
-      currentPrice: 3120,
-      lowerPrice: 3200,
-      upperPrice: 3600,
-      liquidity: "800000000000000000",
-      amount0: "1.8",
-      amount1: "5800",
-      valueUSD: 6_820,
-      owner: "demo",
-    },
-  ];
+async function loadPositions(chainId: number): Promise<ManagedPosition[]> {
+  const demoSet: ManagedPosition[] =
+    chainId === 11155111
+      ? [
+          {
+            positionId: "demo-1",
+            tokenId: 10241,
+            chainId,
+            pair: "WETH/USDC",
+            inRange: true,
+            outOfRangeHours: 0,
+            unclaimedFeesUSD: 42.18,
+            ilPct: -0.5,
+            currentPrice: 3180,
+            lowerPrice: 2900,
+            upperPrice: 3400,
+            liquidity: "1200000000000000000",
+            amount0: "2.1",
+            amount1: "6700",
+            valueUSD: 12_450,
+            owner: "demo",
+          },
+          {
+            positionId: "demo-2",
+            tokenId: 10388,
+            chainId,
+            pair: "WETH/DAI",
+            inRange: false,
+            outOfRangeHours: 8,
+            unclaimedFeesUSD: 11.9,
+            ilPct: -2.3,
+            currentPrice: 3120,
+            lowerPrice: 3200,
+            upperPrice: 3600,
+            liquidity: "800000000000000000",
+            amount0: "1.8",
+            amount1: "5800",
+            valueUSD: 6_820,
+            owner: "demo",
+          },
+        ]
+      : [];
 
   const db = getDb();
   if (!db) return demoSet;
 
-  // Try to load from DB; fall back to demo set if empty.
   try {
     const dbPositions = await db.position.findMany({
-      where: { closedAt: null },
+      where: { closedAt: null, chainId },
       include: { strategyConfig: true },
     });
 
     if (dbPositions.length === 0) return demoSet;
 
-    // Merge with live data — for now using stored values as the "live" snapshot.
     return dbPositions.map((p) => ({
       positionId: p.id,
       tokenId: Number(p.tokenId),
+      chainId: p.chainId,
       pair: `${p.token0}/${p.token1}`,
       inRange: true, // would come from slot0 comparison
       outOfRangeHours: 0,
@@ -263,6 +294,7 @@ async function recordSnapshot(pos: ManagedPosition): Promise<void> {
     await db.positionSnapshot.create({
       data: {
         positionId: pos.positionId,
+        chainId: pos.chainId,
         liquidity: pos.liquidity,
         amount0: pos.amount0,
         amount1: pos.amount1,
@@ -278,6 +310,7 @@ async function recordSnapshot(pos: ManagedPosition): Promise<void> {
 }
 
 async function recordAction(
+  chain: ChainInfo,
   positionId: string,
   type: StrategyActionType,
   status: "EXECUTED" | "FAILED" | "DRY_RUN",
@@ -285,12 +318,15 @@ async function recordAction(
   details?: Record<string, unknown>,
   txHash?: string
 ): Promise<StrategyActionDto | null> {
+  strategyActionsTotal.inc({ type, status, chain: chain.slug });
+
   const db = getDb();
   if (!db || positionId.startsWith("demo-")) {
     // Still publish to EventBus for demo mode
     const dto: StrategyActionDto = {
       id: `demo-${Date.now()}`,
       positionId,
+      chainId: chain.chainId,
       ts: Date.now(),
       type,
       status,
@@ -305,6 +341,7 @@ async function recordAction(
     const row = await db.strategyAction.create({
       data: {
         positionId,
+        chainId: chain.chainId,
         type,
         status,
         txHash: txHash ?? null,
@@ -314,6 +351,7 @@ async function recordAction(
     const dto: StrategyActionDto = {
       id: row.id,
       positionId: row.positionId,
+      chainId: row.chainId,
       ts: row.ts.getTime(),
       type: row.type,
       status: row.status,
@@ -343,10 +381,6 @@ function publishEvent(
 
 // ---- v1.3: Notification dispatch ----
 
-/**
- * Fire-and-forget notification dispatch. Queries notification settings for
- * the position owner and sends alerts per the gating rules.
- */
 async function maybeNotify(opts: {
   owner: string;
   event: "rebalance" | "compound" | "stopLoss" | "failure" | "outOfRange";
@@ -422,16 +456,17 @@ async function maybeNotify(opts: {
   }
 }
 
-// ---- On-chain execution ----
+// ---- On-chain execution (per-chain runtime) ----
 
 async function executeCompound(
+  rt: ChainRuntime,
   tokenId: number
 ): Promise<{ hash?: string; ok: boolean }> {
   const maxU128 = (1n << 128n) - 1n;
   try {
-    const { request } = await publicClient.simulateContract({
+    const { request } = await rt.publicClient.simulateContract({
       account,
-      address: UNISWAP_V3.nonfungiblePositionManager as Hex,
+      address: rt.info.nfpmAddress as Hex,
       abi: positionManagerAbi,
       functionName: "collect",
       args: [
@@ -443,7 +478,7 @@ async function executeCompound(
         },
       ],
     });
-    const hash = await walletClient.writeContract(request);
+    const hash = await rt.walletClient.writeContract(request);
     return { hash, ok: true };
   } catch (e) {
     log(`  ↳ compound failed (${(e as Error).message.split("\n")[0]})`);
@@ -452,12 +487,13 @@ async function executeCompound(
 }
 
 async function executeRebalance(
+  rt: ChainRuntime,
   tokenId: number
 ): Promise<{ hash?: string; ok: boolean }> {
   try {
-    const { request } = await publicClient.simulateContract({
+    const { request } = await rt.publicClient.simulateContract({
       account,
-      address: UNISWAP_V3.nonfungiblePositionManager as Hex,
+      address: rt.info.nfpmAddress as Hex,
       abi: positionManagerAbi,
       functionName: "decreaseLiquidity",
       args: [
@@ -470,7 +506,7 @@ async function executeRebalance(
         },
       ],
     });
-    const hash = await walletClient.writeContract(request);
+    const hash = await rt.walletClient.writeContract(request);
     return { hash, ok: true };
   } catch (e) {
     log(`  ↳ rebalance failed (${(e as Error).message.split("\n")[0]})`);
@@ -478,206 +514,82 @@ async function executeRebalance(
   }
 }
 
-// ---- Main tick ----
+// ---- Per-chain tick ----
 
-async function tick(): Promise<void> {
-  const dryRun = await getEngineDryRun();
+export async function tickChain(
+  rt: ChainRuntime,
+  dryRun: boolean
+): Promise<void> {
+  const endTimer = workerRunDuration.startTimer({ chain: rt.info.slug });
+  try {
+    const positions = await loadPositions(rt.info.chainId);
+    log(
+      `[${rt.info.slug}] tick · ${positions.length} positions · dryRun=${dryRun}`
+    );
 
-  if (config.killSwitch) {
-    log("KILL SWITCH ON — no actions taken.");
-    const positions = await loadPositions();
     for (const pos of positions) {
-      await recordAction(
-        pos.positionId,
-        "SKIPPED",
-        "DRY_RUN",
-        "kill switch active"
-      );
-    }
-    publishEvent("engine_status", {
-      running: false,
-      dryRun,
-      lastRunTs: Date.now(),
-    });
-    return;
-  }
+      // 1. Record a snapshot for every position.
+      await recordSnapshot(pos);
 
-  const positions = await loadPositions();
-  log(`tick · ${positions.length} positions · dryRun=${dryRun}`);
-
-  for (const pos of positions) {
-    // 1. Record a snapshot for every position.
-    await recordSnapshot(pos);
-
-    // Publish position_status event
-    publishEvent("position_status", {
-      positionId: pos.positionId,
-      inRange: pos.inRange,
-      valueUsd: pos.valueUSD,
-      unclaimedFeesUsd: pos.unclaimedFeesUSD,
-    });
-
-    // 2. Get this position's strategy config.
-    const cfg = await getConfig(pos.positionId);
-
-    // 3. Run the decision engine.
-    const decisionPos: DecisionPosition = {
-      positionId: pos.positionId,
-      pair: pos.pair,
-      inRange: pos.inRange,
-      outOfRangeHours: pos.outOfRangeHours,
-      unclaimedFeesUsd: pos.unclaimedFeesUSD,
-      ilPct: pos.ilPct,
-      currentPrice: pos.currentPrice,
-      lowerPrice: pos.lowerPrice,
-      upperPrice: pos.upperPrice,
-    };
-
-    const decision = decide(decisionPos, cfg);
-
-    // 4. Execute + record action.
-    if (decision.type === "SKIPPED") {
-      log(`  #${pos.tokenId} SKIPPED — ${decision.reason}`);
-      await recordAction(
-        pos.positionId,
-        "SKIPPED",
-        "DRY_RUN",
-        decision.reason
-      );
-    } else if (decision.type === "STOP_LOSS") {
-      log(`  #${pos.tokenId} STOP_LOSS — ${decision.reason}`);
-
-      // v1.3: Simulate before executing
-      const sim = await simulationService.simulate({
-        type: "STOP_LOSS" as ActionType,
-        tokenId: pos.tokenId,
-        caller: account.address as Address,
+      // Publish position_status event (v1.6: includes chainId)
+      publishEvent("position_status", {
+        positionId: pos.positionId,
+        chainId: pos.chainId,
+        inRange: pos.inRange,
+        valueUsd: pos.valueUSD,
+        unclaimedFeesUsd: pos.unclaimedFeesUSD,
       });
 
-      if (!sim.ok) {
-        log(`  ↳ simulation failed: ${sim.reason} — skipping execution`);
+      // 2. Get this position's strategy config.
+      const cfg = await getConfig(pos.positionId);
+
+      // 3. Run the decision engine.
+      const decisionPos: DecisionPosition = {
+        positionId: pos.positionId,
+        pair: pos.pair,
+        inRange: pos.inRange,
+        outOfRangeHours: pos.outOfRangeHours,
+        unclaimedFeesUsd: pos.unclaimedFeesUSD,
+        ilPct: pos.ilPct,
+        currentPrice: pos.currentPrice,
+        lowerPrice: pos.lowerPrice,
+        upperPrice: pos.upperPrice,
+      };
+
+      const decision = decide(decisionPos, cfg);
+
+      // 4. Execute + record action.
+      if (decision.type === "SKIPPED") {
+        log(`  [${rt.info.slug}] #${pos.tokenId} SKIPPED — ${decision.reason}`);
         await recordAction(
+          rt.info,
           pos.positionId,
-          "STOP_LOSS",
-          "FAILED",
-          `simulation failed: ${sim.reason}`,
-          { simulation: sim }
+          "SKIPPED",
+          "DRY_RUN",
+          decision.reason
         );
-        await maybeNotify({
-          owner: pos.owner,
-          event: "failure",
-          actionType: "STOP_LOSS",
-          status: "FAILED",
-          pair: pos.pair,
-          tokenId: pos.tokenId,
-          reason: sim.reason,
-        });
         continue;
       }
 
-      const result = dryRun
-        ? { ok: true }
-        : await executeRebalance(pos.tokenId);
+      // STOP_LOSS / COMPOUND / REBALANCE share the same simulate->execute
+      // pipeline; only the executor differs.
+      const actionType = decision.type as "STOP_LOSS" | "COMPOUND" | "REBALANCE";
+      const notifyEvent =
+        actionType === "STOP_LOSS"
+          ? "stopLoss"
+          : actionType === "COMPOUND"
+            ? "compound"
+            : "rebalance";
 
-      const status = result.ok
-        ? dryRun ? "DRY_RUN" : "EXECUTED"
-        : "FAILED";
-
-      await recordAction(
-        pos.positionId,
-        "STOP_LOSS",
-        status,
-        decision.reason,
-        {
-          expectedAmount0: sim.expectedAmount0,
-          expectedAmount1: sim.expectedAmount1,
-          gasEstimate: sim.gasEstimate,
-          gasCostUsd: sim.gasCostUsd,
-        }
-      );
-
-      await maybeNotify({
-        owner: pos.owner,
-        event: result.ok ? "stopLoss" : "failure",
-        actionType: "STOP_LOSS",
-        status,
-        pair: pos.pair,
-        tokenId: pos.tokenId,
-        reason: decision.reason,
-        dryRun,
-      });
-
-    } else if (decision.type === "COMPOUND") {
-      log(`  #${pos.tokenId} COMPOUND — ${decision.reason}`);
-
-      // v1.3: Simulate before executing
-      const sim = await simulationService.simulate({
-        type: "COMPOUND" as ActionType,
-        tokenId: pos.tokenId,
-        caller: account.address as Address,
-      });
-
-      if (!sim.ok) {
-        log(`  ↳ simulation failed: ${sim.reason} — skipping execution`);
-        await recordAction(
-          pos.positionId,
-          "COMPOUND",
-          "FAILED",
-          `simulation failed: ${sim.reason}`,
-          { simulation: sim }
-        );
-        await maybeNotify({
-          owner: pos.owner,
-          event: "failure",
-          actionType: "COMPOUND",
-          status: "FAILED",
-          pair: pos.pair,
-          tokenId: pos.tokenId,
-          reason: sim.reason,
-        });
-        continue;
-      }
-
-      const result = dryRun
-        ? { ok: true }
-        : await executeCompound(pos.tokenId);
-
-      const status = result.ok
-        ? dryRun ? "DRY_RUN" : "EXECUTED"
-        : "FAILED";
-
-      await recordAction(
-        pos.positionId,
-        "COMPOUND",
-        status,
-        decision.reason,
-        {
-          expectedAmount0: sim.expectedAmount0,
-          expectedAmount1: sim.expectedAmount1,
-          gasEstimate: sim.gasEstimate,
-          gasCostUsd: sim.gasCostUsd,
-        }
-      );
-
-      await maybeNotify({
-        owner: pos.owner,
-        event: result.ok ? "compound" : "failure",
-        actionType: "COMPOUND",
-        status,
-        pair: pos.pair,
-        tokenId: pos.tokenId,
-        reason: decision.reason,
-        dryRun,
-      });
-
-    } else if (decision.type === "REBALANCE") {
       log(
-        `  #${pos.tokenId} REBALANCE → [${decision.newLower?.toFixed(2)}, ${decision.newUpper?.toFixed(2)}] — ${decision.reason}`
+        actionType === "REBALANCE"
+          ? `  [${rt.info.slug}] #${pos.tokenId} REBALANCE → [${decision.newLower?.toFixed(2)}, ${decision.newUpper?.toFixed(2)}] — ${decision.reason}`
+          : `  [${rt.info.slug}] #${pos.tokenId} ${actionType} — ${decision.reason}`
       );
 
       // v1.3: Simulate before executing
-      const sim = await simulationService.simulate({
-        type: "REBALANCE" as ActionType,
+      const sim = await rt.simulation.simulate({
+        type: actionType as ActionType,
         tokenId: pos.tokenId,
         caller: account.address as Address,
       });
@@ -685,8 +597,9 @@ async function tick(): Promise<void> {
       if (!sim.ok) {
         log(`  ↳ simulation failed: ${sim.reason} — skipping execution`);
         await recordAction(
+          rt.info,
           pos.positionId,
-          "REBALANCE",
+          actionType,
           "FAILED",
           `simulation failed: ${sim.reason}`,
           { simulation: sim }
@@ -694,7 +607,7 @@ async function tick(): Promise<void> {
         await maybeNotify({
           owner: pos.owner,
           event: "failure",
-          actionType: "REBALANCE",
+          actionType,
           status: "FAILED",
           pair: pos.pair,
           tokenId: pos.tokenId,
@@ -704,16 +617,19 @@ async function tick(): Promise<void> {
       }
 
       const result = dryRun
-        ? { ok: true }
-        : await executeRebalance(pos.tokenId);
+        ? { ok: true as const, hash: undefined }
+        : actionType === "COMPOUND"
+          ? await executeCompound(rt, pos.tokenId)
+          : await executeRebalance(rt, pos.tokenId);
 
       const status = result.ok
         ? dryRun ? "DRY_RUN" : "EXECUTED"
         : "FAILED";
 
       await recordAction(
+        rt.info,
         pos.positionId,
-        "REBALANCE",
+        actionType,
         status,
         decision.reason,
         {
@@ -721,50 +637,97 @@ async function tick(): Promise<void> {
           expectedAmount1: sim.expectedAmount1,
           gasEstimate: sim.gasEstimate,
           gasCostUsd: sim.gasCostUsd,
-          newLower: decision.newLower,
-          newUpper: decision.newUpper,
+          ...(actionType === "REBALANCE"
+            ? { newLower: decision.newLower, newUpper: decision.newUpper }
+            : {}),
         },
         result.hash
       );
 
       await maybeNotify({
         owner: pos.owner,
-        event: result.ok ? "rebalance" : "failure",
-        actionType: "REBALANCE",
+        event: result.ok ? notifyEvent : "failure",
+        actionType,
         status,
         pair: pos.pair,
         tokenId: pos.tokenId,
         reason: decision.reason,
         dryRun,
       });
-    }
 
-    // v1.3: Check out-of-range duration for notification
-    if (!pos.inRange && pos.outOfRangeHours > 0) {
-      await maybeNotify({
-        owner: pos.owner,
-        event: "outOfRange",
-        actionType: "OUT_OF_RANGE",
-        status: "INFO",
-        pair: pos.pair,
-        tokenId: pos.tokenId,
-        hoursOutOfRange: pos.outOfRangeHours,
+      // v1.3: Check out-of-range duration for notification
+      if (!pos.inRange && pos.outOfRangeHours > 0) {
+        await maybeNotify({
+          owner: pos.owner,
+          event: "outOfRange",
+          actionType: "OUT_OF_RANGE",
+          status: "INFO",
+          pair: pos.pair,
+          tokenId: pos.tokenId,
+          hoursOutOfRange: pos.outOfRangeHours,
+        });
+      }
+    }
+  } finally {
+    endTimer();
+  }
+}
+
+// ---- Main tick: iterate all enabled chains, errors isolated ----
+
+async function tick(): Promise<void> {
+  currentRunId = randomUUID().slice(0, 8);
+  const dryRun = await getEngineDryRun();
+
+  if (config.killSwitch) {
+    log("KILL SWITCH ON — no actions taken.");
+    for (const rt of chainRuntimes.values()) {
+      const positions = await loadPositions(rt.info.chainId).catch(() => []);
+      for (const pos of positions) {
+        await recordAction(
+          rt.info,
+          pos.positionId,
+          "SKIPPED",
+          "DRY_RUN",
+          "kill switch active"
+        );
+      }
+      publishEvent("engine_status", {
+        running: false,
+        dryRun,
+        lastRunTs: Date.now(),
+        chainId: rt.info.chainId,
       });
     }
+    return;
   }
 
-  // Publish engine status
-  publishEvent("engine_status", {
-    running: true,
-    dryRun,
-    lastRunTs: Date.now(),
+  // v1.6: per-chain error isolation — one chain failing never stops others.
+  const results = await Promise.allSettled(
+    [...chainRuntimes.values()].map((rt) => tickChain(rt, dryRun))
+  );
+  const runtimes = [...chainRuntimes.values()];
+  results.forEach((res, i) => {
+    const rt = runtimes[i];
+    if (res.status === "rejected") {
+      log(
+        `[${rt.info.slug}] tick FAILED (isolated): ${(res.reason as Error)?.message ?? res.reason}`
+      );
+    }
+    publishEvent("engine_status", {
+      running: true,
+      dryRun,
+      lastRunTs: Date.now(),
+      chainId: rt.info.chainId,
+    });
   });
 }
 
 // ---- Boot ----
 
-log("LiquidAI Strategy Engine v1.3 starting");
+log("LiquidAI Strategy Engine v1.6 starting");
 log(`  manager wallet: ${account.address}`);
+log(`  chains: ${config.enabledChains.join(", ")}`);
 log(`  schedule: ${config.cronExpr}`);
 log(
   `  rebalance>${config.rebalanceAfterHours}h · compound>$${config.compoundMinUsd} · slippage ${config.maxSlippageBps}bps`

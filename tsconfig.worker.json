@@ -11,7 +11,10 @@
     "noEmit": true,
     "types": ["node"],
     "baseUrl": ".",
-    "paths": { "@/*": ["./src/*"] }
+    "paths": {
+      "@/*": ["./src/*"],
+      "@prisma/client": ["./server/node_modules/@prisma/client"]
+    }
   },
   "include": ["worker/**/*.ts", "src/lib/abi.ts", "src/lib/constants.ts", "src/lib/defi-math.ts", "shared/**/*.ts"]
 }

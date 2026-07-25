@@ -65,6 +65,7 @@ export class StreamPoller {
           type: "position_status",
           data: {
             positionId: snap.positionId,
+            chainId: snap.chainId,
             inRange: snap.inRange,
             valueUsd: snap.valueUsd,
             unclaimedFeesUsd: snap.unclaimedFeesUsd,

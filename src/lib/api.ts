@@ -19,7 +19,9 @@ import type {
   BacktestDto,
   BacktestResult,
   CreateBacktestInput,
+  StatusResponse,
 } from "../../shared/types";
+import { DEFAULT_CHAIN_SLUG, type ChainSlug } from "../../shared/chains";
 
 const API_BASE =
   process.env.NEXT_PUBLIC_API_BASE || "http://localhost:4000";
@@ -102,22 +104,39 @@ async function apiPost<T>(path: string, body?: unknown): Promise<T> {
   return (await res.json()) as T;
 }
 
-export function fetchPools(first = 25): Promise<RankedPool[]> {
-  return apiGet<RankedPool[]>(`/api/pools?first=${first}`);
+export function fetchPools(
+  first = 25,
+  chain: ChainSlug = DEFAULT_CHAIN_SLUG
+): Promise<RankedPool[]> {
+  return apiGet<RankedPool[]>(`/api/pools?first=${first}&chain=${chain}`);
 }
 
-export function fetchPoolDetail(id: string): Promise<PoolDetail> {
-  return apiGet<PoolDetail>(`/api/pools/${encodeURIComponent(id)}`);
+export function fetchPoolDetail(
+  id: string,
+  chain: ChainSlug = DEFAULT_CHAIN_SLUG
+): Promise<PoolDetail> {
+  return apiGet<PoolDetail>(
+    `/api/pools/${encodeURIComponent(id)}?chain=${chain}`
+  );
 }
 
 export function fetchProtocolStats(): Promise<ProtocolStats> {
   return apiGet<ProtocolStats>(`/api/protocol/stats`);
 }
 
-export function fetchPositions(address: string): Promise<ApiPosition[]> {
+export function fetchPositions(
+  address: string,
+  chain: ChainSlug = DEFAULT_CHAIN_SLUG
+): Promise<ApiPosition[]> {
   return apiGet<ApiPosition[]>(
-    `/api/positions/${encodeURIComponent(address)}`
+    `/api/positions/${encodeURIComponent(address)}?chain=${chain}`
   );
+}
+
+// ---- v1.6 Status API ----
+
+export function fetchStatus(): Promise<StatusResponse> {
+  return apiGet<StatusResponse>(`/api/status`);
 }
 
 export function fetchAnalytics(hours = 168): Promise<AnalyticsResponse> {

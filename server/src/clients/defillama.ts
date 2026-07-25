@@ -1,9 +1,12 @@
 // server/src/clients/defillama.ts
 // DefiLlama public REST client (api.llama.fi + yields.llama.fi), zod-validated.
+// v1.6: latency/error metrics + health signals on every call.
 
 import { z } from "zod";
 import { config } from "../lib/config";
 import { UpstreamError } from "../lib/errors";
+import { timeExternalCall } from "../lib/metrics";
+import { healthService, DEP_DEFILLAMA } from "../lib/health";
 
 const ProtocolSchema = z.object({
   tvl: z
@@ -42,26 +45,35 @@ export type YieldPool = z.infer<typeof YieldPoolSchema>;
 
 async function getJson<S extends z.ZodTypeAny>(
   url: string,
-  schema: S
+  schema: S,
+  chain = "-"
 ): Promise<z.output<S>> {
-  let res: Response;
-  try {
-    res = await fetch(url, {
-      headers: { accept: "application/json" },
-      signal: AbortSignal.timeout(15_000),
-    });
-  } catch (err) {
-    throw new UpstreamError("defillama", (err as Error).message);
-  }
-  if (!res.ok) throw new UpstreamError("defillama", `HTTP ${res.status} ${url}`);
-  const parsed = schema.safeParse(await res.json());
-  if (!parsed.success) {
-    throw new UpstreamError(
-      "defillama",
-      `schema mismatch: ${parsed.error.issues[0]?.message ?? "unknown"}`
-    );
-  }
-  return parsed.data;
+  return timeExternalCall(
+    "defillama",
+    chain,
+    async () => {
+      let res: Response;
+      try {
+        res = await fetch(url, {
+          headers: { accept: "application/json" },
+          signal: AbortSignal.timeout(15_000),
+        });
+      } catch (err) {
+        throw new UpstreamError("defillama", (err as Error).message);
+      }
+      if (!res.ok)
+        throw new UpstreamError("defillama", `HTTP ${res.status} ${url}`);
+      const parsed = schema.safeParse(await res.json());
+      if (!parsed.success) {
+        throw new UpstreamError(
+          "defillama",
+          `schema mismatch: ${parsed.error.issues[0]?.message ?? "unknown"}`
+        );
+      }
+      return parsed.data;
+    },
+    (ok) => healthService.record(DEP_DEFILLAMA, ok)
+  );
 }
 
 export class DefiLlamaClient {
