@@ -5,14 +5,8 @@
   "installCommand": "npm install",
   "outputDirectory": ".next",
   "env": {
-    "NEXT_PUBLIC_API_BASE": {
-      "value": "https://liquidai-api.onrender.com"
-    },
-    "NEXT_PUBLIC_WALLETCONNECT_ID": {
-      "value": "demo"
-    },
-    "NEXT_PUBLIC_SEPOLIA_RPC": {
-      "value": "https://rpc.sepolia.org"
-    }
+    "NEXT_PUBLIC_API_BASE": ".",
+    "NEXT_PUBLIC_WALLETCONNECT_ID": "demo",
+    "NEXT_PUBLIC_SEPOLIA_RPC": "https://rpc.sepolia.org"
   }
 }
