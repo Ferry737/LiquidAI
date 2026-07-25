@@ -15,6 +15,9 @@ const CHAIN_ORB: Record<ChainSlug, string> = {
   sepolia: "from-indigo-400 to-purple-500",
   "arbitrum-sepolia": "from-sky-400 to-blue-600",
   "base-sepolia": "from-blue-400 to-cyan-500",
+  ethereum: "from-slate-300 to-slate-500",
+  arbitrum: "from-sky-400 to-blue-700",
+  base: "from-blue-400 to-indigo-500",
 };
 
 function ChainIcon({ slug, active }: { slug: ChainSlug; active?: boolean }) {
@@ -51,7 +54,7 @@ export function ChainSwitcher() {
     setOpen(false);
     // Best-effort wallet switch — ignore if no wallet connected.
     try {
-      switchChain({ chainId: chainId as 11155111 | 421614 | 84532 });
+      switchChain({ chainId: chainId as unknown as 11155111 | 421614 | 84532 });
     } catch {
       // no connected wallet — UI-only switch
     }

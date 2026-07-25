@@ -28,7 +28,7 @@ export default function SignUpPage() {
         </div>
         <p className="mt-7 text-xs text-white/40">
           Already have access?{" "}
-          <Link className="text-emerald-300 hover:text-emerald-200" href="/">
+          <Link className="text-emerald-300 hover:text-emerald-200" href="/dashboard">
             Return to the dashboard
           </Link>
         </p>

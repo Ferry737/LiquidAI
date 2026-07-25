@@ -1,6 +1,6 @@
 // src/app/page.tsx
-import { Dashboard } from "@/components/dashboard/Dashboard";
+import { Landing } from "@/components/landing/Landing";
 
 export default function Page() {
-  return <Dashboard />;
+  return <Landing />;
 }

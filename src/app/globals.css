@@ -13,20 +13,102 @@ body {
 }
 
 body {
-  background-color: #0a0b0f;
-  background-image: radial-gradient(
-      800px circle at 15% -10%,
-      rgba(52, 211, 153, 0.08),
-      transparent 40%
-    ),
-    radial-gradient(
-      700px circle at 90% 0%,
-      rgba(34, 211, 238, 0.07),
-      transparent 40%
-    );
+  background-color: #07080c;
   color: rgba(255, 255, 255, 0.92);
   font-feature-settings: "cv02", "cv03", "cv04", "cv11";
   -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+/* Animated aurora backdrop — sits behind all app content */
+.app-aurora {
+  position: fixed;
+  inset: 0;
+  z-index: -10;
+  overflow: hidden;
+  pointer-events: none;
+  background:
+    radial-gradient(900px circle at 12% -8%, rgba(52, 211, 153, 0.10), transparent 42%),
+    radial-gradient(760px circle at 92% 4%, rgba(34, 211, 238, 0.09), transparent 42%),
+    radial-gradient(700px circle at 50% 110%, rgba(167, 139, 250, 0.07), transparent 45%);
+}
+
+.app-aurora::before,
+.app-aurora::after {
+  content: "";
+  position: absolute;
+  width: 48vw;
+  height: 48vw;
+  border-radius: 50%;
+  filter: blur(90px);
+  opacity: 0.5;
+  will-change: transform;
+}
+
+.app-aurora::before {
+  top: -12%;
+  left: -8%;
+  background: radial-gradient(circle, rgba(52, 211, 153, 0.45), transparent 60%);
+  animation: aurora 22s ease-in-out infinite alternate;
+}
+
+.app-aurora::after {
+  bottom: -14%;
+  right: -6%;
+  background: radial-gradient(circle, rgba(34, 211, 238, 0.40), transparent 60%);
+  animation: aurora 27s ease-in-out infinite alternate-reverse;
+}
+
+/* Subtle grain/vignette to add depth */
+.app-vignette {
+  position: fixed;
+  inset: 0;
+  z-index: -9;
+  pointer-events: none;
+  background: radial-gradient(120% 120% at 50% 0%, transparent 55%, rgba(0, 0, 0, 0.55) 100%);
+}
+
+@keyframes aurora {
+  0% { transform: translate3d(-4%, -2%, 0) scale(1); }
+  50% { transform: translate3d(3%, 2%, 0) scale(1.08); }
+  100% { transform: translate3d(-2%, 3%, 0) scale(1.03); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .app-aurora::before,
+  .app-aurora::after {
+    animation: none;
+  }
+}
+
+/* Brand gradient text */
+.text-gradient {
+  background-image: linear-gradient(100deg, #ffffff 0%, #a7f3d0 38%, #67e8f9 72%, #c4b5fd 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.text-gradient-accent {
+  background-image: linear-gradient(100deg, #34d399 0%, #22d3ee 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+/* Glass surface utility */
+.glass {
+  background-color: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+}
+
+.glass-strong {
+  background-color: rgba(255, 255, 255, 0.045);
+  border: 1px solid rgba(255, 255, 255, 0.10);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
 }
 
 /* Kill default browser styling everywhere */
@@ -83,6 +165,9 @@ input[type="range"]::-moz-range-thumb {
   height: 8px;
 }
 ::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.12);
   border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.2);
 }

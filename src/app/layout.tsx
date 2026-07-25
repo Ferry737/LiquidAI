@@ -1,16 +1,21 @@
 // src/app/layout.tsx
 import type { Metadata } from "next";
-import { Inter } from "next/font/google";
+import { Manrope } from "next/font/google";
 import "./globals.css";
 import { Providers } from "@/components/Providers";
 import { Nav } from "@/components/Nav";
+import { SpeedInsights } from "@vercel/speed-insights/next";
 
-const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
+const manrope = Manrope({
+  subsets: ["latin"],
+  variable: "--font-manrope",
+  display: "swap",
+});
 
 export const metadata: Metadata = {
   title: "LiquidAI — Autonomous Uniswap v3 Liquidity",
   description:
-    "Create and auto-manage Uniswap v3 liquidity positions on Sepolia with a rule-based AI strategy engine.",
+    "LiquidAI auto-creates and rebalances Uniswap v3 concentrated liquidity positions with a rule-based AI strategy engine. Maximise fee yield, minimise drift.",
 };
 
 export default function RootLayout({
@@ -19,12 +24,15 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en" className={inter.variable}>
+    <html lang="en" className={manrope.variable}>
       <body className="font-sans antialiased">
+        <div className="app-aurora" aria-hidden />
+        <div className="app-vignette" aria-hidden />
         <Providers>
           <Nav />
           <main className="mx-auto max-w-7xl px-6 py-10">{children}</main>
         </Providers>
+        <SpeedInsights />
       </body>
     </html>
   );
