@@ -5,10 +5,17 @@ const nextConfig = {
   async rewrites() {
     // Proxy /api/* to the Fastify backend so the browser only ever talks to
     // the web origin (no CORS, single tunnel when deployed behind one).
+    // Local dev: BACKEND_URL defaults to localhost:4000. On Vercel, set
+    // BACKEND_URL env var to the public tunnel/backend URL.
+    const backend = process.env.BACKEND_URL || "http://localhost:4000";
     return [
       {
         source: "/api/:path*",
-        destination: "http://localhost:4000/api/:path*",
+        destination: `${backend}/api/:path*`,
+      },
+      {
+        source: "/health",
+        destination: `${backend}/health`,
       },
     ];
   },
