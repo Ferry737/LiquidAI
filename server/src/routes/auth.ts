@@ -33,7 +33,10 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
       reply.setCookie("liquidai_preauth", preAuthId, {
         httpOnly: true,
         secure: process.env.NODE_ENV === "production",
-        sameSite: "strict",
+        // Same as the session cookie: "none" in production so the pre-auth
+        // cookie survives the cross-origin Vercel→Render boundary; "strict"
+        // in dev (same-origin on localhost).
+        sameSite: process.env.NODE_ENV === "production" ? "none" : "strict",
         path: "/",
         maxAge: 600, // 10 min — same as nonce TTL
       });
