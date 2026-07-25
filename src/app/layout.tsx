@@ -4,6 +4,7 @@ import { Inter } from "next/font/google";
 import "./globals.css";
 import { Providers } from "@/components/Providers";
 import { Nav } from "@/components/Nav";
+import { SpeedInsights } from "@vercel/speed-insights/next";
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
 
@@ -25,6 +26,7 @@ export default function RootLayout({
           <Nav />
           <main className="mx-auto max-w-7xl px-6 py-10">{children}</main>
         </Providers>
+        <SpeedInsights />
       </body>
     </html>
   );
