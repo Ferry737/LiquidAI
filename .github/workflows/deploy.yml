@@ -26,9 +26,9 @@ jobs:
   ci:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: 20
           cache: npm
@@ -57,13 +57,25 @@ jobs:
   # ───────────────────────────────────────────────────────────────
   deploy:
     needs: ci
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push' && env.VERCEL_TOKEN != '' && env.VERCEL_ORG_ID != '' && env.VERCEL_PROJECT_ID != ''
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       # --- Vercel: build + promote frontend to production ---
+      - name: Check Vercel credentials
+        id: vercel-credentials
+        shell: bash
+        run: |
+          if [[ -n "$VERCEL_TOKEN" && -n "$VERCEL_ORG_ID" && -n "$VERCEL_PROJECT_ID" ]]; then
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+            echo "Vercel credentials are not configured; skipping hosting deploy."
+          fi
+
       - name: Deploy frontend to Vercel (production)
+        if: steps.vercel-credentials.outputs.configured == 'true'
         uses: amondnet/vercel-action@v25
         with:
           vercel-token: ${{ env.VERCEL_TOKEN }}
@@ -74,5 +86,5 @@ jobs:
 
       # --- Render: trigger image rebuild + redeploy (API + worker) ---
       - name: Trigger Render deploy
-        if: ${{ env.RENDER_DEPLOY_HOOK != '' }}
+        if: env.RENDER_DEPLOY_HOOK != ''
         run: curl -fsS -X POST "$RENDER_DEPLOY_HOOK"
