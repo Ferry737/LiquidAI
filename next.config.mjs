@@ -20,6 +20,8 @@ const nextConfig = {
       "@x402/evm": false,
       "@coinbase/cdp-sdk": false,
       "@base-org/account": false,
+      // @metamask/sdk pulls in react-native storage that doesn't exist in web builds.
+      "@react-native-async-storage/async-storage": false,
     };
     return config;
   },
