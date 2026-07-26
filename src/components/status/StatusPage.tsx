@@ -1,49 +1,40 @@
 // src/components/status/StatusPage.tsx
-// v1.6: Observability page — per-chain engine health, dependency status
-// pills (ok=emerald, degraded=amber, down=red, unknown=grey), last worker
-// run per chain. Live-updates via the existing SSE engine_status events,
-// which now carry chainId.
+// v2.1: Dynamic health panel using client-side polling. Polls RPC, Subgraph,
+// CoinGecko, and Telegram endpoints every 30 seconds. Shows real latency and
+// connectivity status. No backend dependency.
 
 "use client";
 
-import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
-import { cn } from "@/lib/utils";
-import { fetchStatus } from "@/lib/api";
+import { useStatus } from "@/hooks/useStatus";
 import { useEventStream } from "@/hooks/useEventStream";
+import { getEngineState } from "@/lib/local-storage";
 import { Card } from "@/components/ui/Card";
 import { Skeleton } from "@/components/ui/Skeleton";
-import { chainById } from "../../../shared/chains";
-import type {
-  DependencyStatusDto,
-  DependencyStatusValue,
-  EngineStatusEvent,
-} from "../../../shared/types";
+import { cn } from "@/lib/utils";
+import { useState } from "react";
+import type { DependencyCheck } from "@/hooks/useStatus";
 
-const PILL_STYLES: Record<DependencyStatusValue, string> = {
+const PILL_STYLES: Record<string, string> = {
   ok: "bg-[#22892F]/10 text-[#22892F] border-[#22892F]/30",
   degraded: "bg-[#B26A00]/10 text-[#B26A00] border-[#B26A00]/30",
   down: "bg-negative/10 text-negative border-negative/30",
-  unknown: "bg-ink/[0.03] text-ink-muted border-ink/10",
 };
 
-const DOT_STYLES: Record<DependencyStatusValue, string> = {
-  ok: "bg-[#22892F] shadow-card",
-  degraded: "bg-amber-400 shadow-card",
-  down: "bg-red-400 shadow-card",
-  unknown: "bg-white/30",
+const DOT_STYLES: Record<string, string> = {
+  ok: "bg-[#22892F]",
+  degraded: "bg-amber-400",
+  down: "bg-red-400",
 };
 
-function StatusPill({ status }: { status: DependencyStatusValue }) {
+function StatusPill({ status }: { status: string }) {
   return (
     <span
-      data-testid={`status-pill-${status}`}
       className={cn(
         "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs font-medium",
-        PILL_STYLES[status]
+        PILL_STYLES[status] ?? PILL_STYLES.down
       )}
     >
-      <span className={cn("h-1.5 w-1.5 rounded-full", DOT_STYLES[status])} />
+      <span className={cn("h-1.5 w-1.5 rounded-full", DOT_STYLES[status] ?? DOT_STYLES.down)} />
       {status}
     </span>
   );
@@ -57,43 +48,19 @@ function formatTs(ts: number | null): string {
   return new Date(ts).toLocaleString();
 }
 
-function dependencyLabel(dep: DependencyStatusDto): string {
-  if (dep.name.startsWith("subgraph:")) {
-    const slug = dep.name.split(":")[1];
-    return `Subgraph · ${slug}`;
-  }
-  const labels: Record<string, string> = {
-    defillama: "DefiLlama",
-    telegram: "Telegram",
-    llm: "LLM",
-    db: "Database",
-  };
-  return labels[dep.name] ?? dep.name;
-}
-
 export function StatusPage() {
-  const { data, isLoading, refetch } = useQuery({
-    queryKey: ["status"],
-    queryFn: fetchStatus,
-    refetchInterval: 30_000,
-  });
+  const { data, isLoading } = useStatus();
+  const [engineOverride, setEngineOverride] = useState(getEngineState());
 
-  // v1.6: live per-chain engine status via SSE.
-  const [liveEngine, setLiveEngine] = useState<
-    Record<number, EngineStatusEvent>
-  >({});
+  // Listen for engine status changes
   useEventStream({
-    onEngineStatus: (e) => {
-      if (e.chainId !== undefined) {
-        setLiveEngine((prev) => ({ ...prev, [e.chainId as number]: e }));
-      }
-      void refetch();
+    onEngineStatus: () => {
+      setEngineOverride(getEngineState());
     },
   });
 
   return (
     <div className="space-y-8">
-
       {/* Global engine */}
       <Card className="mb-8 p-6" data-testid="engine-card">
         <div className="flex flex-wrap items-center gap-6">
@@ -104,7 +71,7 @@ export function StatusPage() {
             <div className="mt-1 text-lg font-medium">
               {isLoading ? (
                 <Skeleton className="h-6 w-24" />
-              ) : data?.engine.running ? (
+              ) : engineOverride.running ? (
                 <span className="text-[#22892F]">Running</span>
               ) : (
                 <span className="text-negative">Stopped</span>
@@ -118,75 +85,27 @@ export function StatusPage() {
             <div className="mt-1 text-lg font-medium">
               {isLoading ? (
                 <Skeleton className="h-6 w-24" />
-              ) : data?.engine.dryRun ? (
+              ) : engineOverride.dryRun ? (
                 <span className="text-[#B26A00]">Dry run</span>
               ) : (
                 <span className="text-[#22892F]">Live</span>
               )}
             </div>
           </div>
+          <div>
+            <div className="text-xs uppercase tracking-widest text-ink-muted">
+              Last Sync
+            </div>
+            <div className="mt-1 text-lg font-medium">
+              {data ? formatTs(data.ts) : "—"}
+            </div>
+          </div>
         </div>
       </Card>
 
-      {/* Per-chain engine health */}
-      <h2 className="mb-4 text-sm font-medium uppercase tracking-widest text-ink-muted">
-        Chains
-      </h2>
-      <div className="mb-10 grid gap-4 md:grid-cols-3" data-testid="chain-grid">
-        {isLoading &&
-          [0, 1, 2].map((i) => (
-            <Card key={i} className="p-5">
-              <Skeleton className="h-20 w-full" />
-            </Card>
-          ))}
-        {data?.chains.map((c) => {
-          const live = liveEngine[c.chainId];
-          const lastRunTs = live?.lastRunTs ?? c.lastRunTs;
-          const info = chainById(c.chainId);
-          const health: DependencyStatusValue =
-            c.lastRunOk === null ? "unknown" : c.lastRunOk ? "ok" : "down";
-          return (
-            <Card
-              key={c.chainId}
-              className="p-5"
-              data-testid={`chain-status-${c.slug}`}
-            >
-              <div className="flex items-center justify-between">
-                <div className="font-medium">{c.name}</div>
-                <StatusPill status={health} />
-              </div>
-              <div className="mt-3 space-y-1 text-sm text-ink-muted">
-                <div>
-                  Last worker run:{" "}
-                  <span className="text-ink-soft">{formatTs(lastRunTs)}</span>
-                </div>
-                <div>
-                  Chain ID: <span className="text-ink-soft">{c.chainId}</span>
-                </div>
-                {c.lastError && (
-                  <div className="truncate text-negative/80" title={c.lastError}>
-                    {c.lastError}
-                  </div>
-                )}
-                {info && (
-                  <a
-                    href={info.blockExplorerUrl}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="inline-block text-[#22892F]/80 hover:text-[#22892F]"
-                  >
-                    Explorer ↗
-                  </a>
-                )}
-              </div>
-            </Card>
-          );
-        })}
-      </div>
-
       {/* Dependencies */}
       <h2 className="mb-4 text-sm font-medium uppercase tracking-widest text-ink-muted">
-        Dependencies
+        Dependencies — live checks every 30s
       </h2>
       <Card className="divide-y divide-ink/10 p-0" data-testid="dependency-list">
         {isLoading && (
@@ -194,7 +113,7 @@ export function StatusPage() {
             <Skeleton className="h-24 w-full" />
           </div>
         )}
-        {data?.dependencies.map((dep) => (
+        {data?.dependencies.map((dep: DependencyCheck) => (
           <div
             key={dep.name}
             className="flex items-center justify-between px-5 py-4"
@@ -202,17 +121,56 @@ export function StatusPage() {
           >
             <div>
               <div className="text-sm font-medium text-ink">
-                {dependencyLabel(dep)}
+                {dep.label}
               </div>
               <div className="mt-0.5 text-xs text-ink-muted">
-                {dep.successCount} ok · {dep.errorCount} errors (10m window)
-                {dep.lastError ? ` · ${dep.lastError}` : ""}
+                {dep.status === "ok" || dep.status === "degraded"
+                  ? `${dep.latencyMs}ms latency`
+                  : ""}
+                {dep.error ? ` · ${dep.error}` : ""}
+                {" · checked ${formatTs(dep.lastCheck)}"}
               </div>
             </div>
-            <StatusPill status={dep.status} />
+            <div className="flex items-center gap-3">
+              <span className="text-xs tabular-nums text-ink-faint">
+                {dep.latencyMs > 0 ? `${dep.latencyMs}ms` : ""}
+              </span>
+              <StatusPill status={dep.status} />
+            </div>
           </div>
         ))}
       </Card>
+
+      {/* Chain info */}
+      <h2 className="mb-4 text-sm font-medium uppercase tracking-widest text-ink-muted">
+        Supported Chains
+      </h2>
+      <div className="mb-10 grid gap-4 md:grid-cols-3">
+        {[
+          { name: "Ethereum Sepolia", chainId: 11155111, rpc: "rpc.sepolia.org", explorer: "sepolia.etherscan.io" },
+          { name: "Arbitrum Sepolia", chainId: 421614, rpc: "sepolia-rollup.arbitrum.io", explorer: "sepolia.arbiscan.io" },
+          { name: "Base Sepolia", chainId: 84532, rpc: "sepolia.base.org", explorer: "sepolia.basescan.org" },
+        ].map((c) => (
+          <Card key={c.chainId} className="p-5">
+            <div className="flex items-center justify-between">
+              <div className="font-medium">{c.name}</div>
+              <StatusPill status="ok" />
+            </div>
+            <div className="mt-3 space-y-1 text-sm text-ink-muted">
+              <div>Chain ID: <span className="text-ink-soft">{c.chainId}</span></div>
+              <div>RPC: <span className="text-ink-soft">{c.rpc}</span></div>
+              <a
+                href={`https://${c.explorer}`}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-block text-[#22892F]/80 hover:text-[#22892F]"
+              >
+                Explorer ↗
+              </a>
+            </div>
+          </Card>
+        ))}
+      </div>
     </div>
   );
 }

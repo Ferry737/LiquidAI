@@ -23,6 +23,7 @@ const PRIMARY = [
   { href: "/pools", label: "Pools", Icon: IconPool },
   { href: "/create", label: "Create", Icon: IconCreate },
   { href: "/backtest", label: "Backtest", Icon: IconBacktest },
+  { href: "/hft", label: "HFT Manager", Icon: IconBolt },
   { href: "/analytics", label: "Analytics", Icon: IconAnalytics },
   { href: "/status", label: "Status", Icon: IconStatus },
 ];

@@ -1,4 +1,5 @@
 // src/components/pools/PoolsTable.tsx
+// v2.1: Uses the subgraph RankedPool type (client-side). No backend dependency.
 "use client";
 
 import Link from "next/link";
@@ -6,7 +7,6 @@ import { usePools } from "@/hooks/usePools";
 import { Card } from "@/components/ui/Card";
 import { Sparkline } from "@/components/ui/Sparkline";
 import { Skeleton } from "@/components/ui/Skeleton";
-import { VerifiedApyBadge } from "@/components/pools/VerifiedApyBadge";
 import { FEE_TIERS } from "@/lib/constants";
 import { formatUSD, formatPct } from "@/lib/utils";
 
@@ -29,10 +29,7 @@ export function PoolsTable() {
 
       {isLoading &&
         Array.from({ length: 5 }).map((_, i) => (
-          <div
-            key={i}
-            className="grid grid-cols-12 items-center gap-4 px-6 py-4"
-          >
+          <div key={i} className="grid grid-cols-12 items-center gap-4 px-6 py-4">
             <Skeleton className="col-span-4 h-6" />
             <Skeleton className="col-span-2 h-6" />
             <Skeleton className="col-span-2 h-6" />
@@ -55,7 +52,6 @@ export function PoolsTable() {
               <span className="rounded-md bg-ink/[0.04] px-1.5 py-0.5 text-xs text-ink-muted">
                 {feeLabel(p.feeTier)}
               </span>
-              {p.verifiedApy && <VerifiedApyBadge />}
             </div>
             <div className="col-span-2 text-right tabular-nums text-ink-soft">
               {formatUSD(p.tvlUSD)}

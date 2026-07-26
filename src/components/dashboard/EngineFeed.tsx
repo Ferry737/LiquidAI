@@ -1,26 +1,25 @@
 // src/components/dashboard/EngineFeed.tsx
-// v1.3: Live streaming timeline of strategy_action events from SSE.
-// Status colors: executed=emerald, failed=red, skipped=zinc, dry_run=cyan.
+// v2.1: Live streaming timeline of strategy_action events from the
+// client-side event stream simulator. No backend SSE required.
 
 "use client";
 
 import { useState, useEffect } from "react";
 import { Card, CardBody, CardTitle } from "@/components/ui/Card";
-import type { StrategyActionDto } from "@/lib/api";
 import { cn } from "@/lib/utils";
+import type { LocalStrategyAction } from "@/lib/local-storage";
 
 const MAX_ITEMS = 20;
 
-interface FeedItem extends StrategyActionDto {
+interface FeedItem extends LocalStrategyAction {
   isNew?: boolean;
 }
 
 export function EngineFeed({
   actions,
 }: {
-  actions: StrategyActionDto[];
+  actions: LocalStrategyAction[];
 }) {
-  // Keep a rolling buffer of the latest 20 items
   const [items, setItems] = useState<FeedItem[]>([]);
 
   useEffect(() => {
@@ -29,12 +28,10 @@ export function EngineFeed({
       const incoming = actions.slice(-MAX_ITEMS).map((a) => ({ ...a, isNew: true }));
       const merged = [...incoming.reverse(), ...prev].slice(0, MAX_ITEMS);
 
-      // Clear "isNew" after animation
       setTimeout(() => {
         setItems((cur) => cur.map((i) => ({ ...i, isNew: false })));
       }, 600);
 
-      // Deduplicate by id
       const seen = new Set<string>();
       return merged.filter((i) => {
         if (seen.has(i.id)) return false;
@@ -57,7 +54,7 @@ export function EngineFeed({
 
         {items.length === 0 ? (
           <div className="py-8 text-center text-sm text-ink-faint">
-            Waiting for engine activity…
+            Waiting for engine activity… Enable the engine to see live signals.
           </div>
         ) : (
           <div className="max-h-[320px] space-y-1.5 overflow-y-auto pr-1">
@@ -79,7 +76,6 @@ function FeedRow({ item }: { item: FeedItem }) {
     SKIPPED: { color: "text-ink-faint", dot: "bg-ink-faint", glow: "" },
   } as const;
 
-  // The status might be SKIPPED for the action type
   const statusKey = (item.status === "EXECUTED"
     ? "EXECUTED"
     : item.status === "FAILED"
@@ -92,13 +88,11 @@ function FeedRow({ item }: { item: FeedItem }) {
 
   const cfg = statusConfig[statusKey];
 
-  const details = parseDetails(item.detailsJson);
-
   return (
     <div
       className={cn(
         "flex items-center gap-3 rounded-lg border border-ink/10 bg-ink/[0.03] px-3 py-2 transition-all duration-300",
-        item.isNew && "border-ink/10 bg-ink/[0.03]"
+        item.isNew && "border-brand-500/20 bg-brand-500/[0.03]"
       )}
     >
       <span className={cn("h-2 w-2 shrink-0 rounded-full", cfg.dot, cfg.glow)} />
@@ -107,44 +101,19 @@ function FeedRow({ item }: { item: FeedItem }) {
           <span className={cn("text-sm font-medium", cfg.color)}>
             {item.type}
           </span>
-          {details.gasCostUsd !== undefined && (
-            <span className="ml-2 text-xs text-ink-faint">
-              gas ~${details.gasCostUsd.toFixed(2)}
-            </span>
-          )}
-        </div>
-        <div className="flex shrink-0 items-center gap-2 text-xs text-ink-faint">
-          {details.expectedAmount0 && (
-            <span className="tabular-nums">
-              {shorten(details.expectedAmount0)} / {shorten(details.expectedAmount1 ?? "")}
-            </span>
-          )}
-          <span className="tabular-nums">
-            {new Date(item.ts).toLocaleTimeString("en-US", {
-              hour12: false,
-              hour: "2-digit",
-              minute: "2-digit",
-              second: "2-digit",
-            })}
+          <span className="ml-2 text-xs text-ink-muted truncate">
+            {item.details}
           </span>
         </div>
+        <span className="shrink-0 text-xs text-ink-faint tabular-nums">
+          {new Date(item.ts).toLocaleTimeString("en-US", {
+            hour12: false,
+            hour: "2-digit",
+            minute: "2-digit",
+            second: "2-digit",
+          })}
+        </span>
       </div>
     </div>
   );
-}
-
-function parseDetails(json: string): Record<string, any> {
-  try {
-    return JSON.parse(json);
-  } catch {
-    return {};
-  }
-}
-
-function shorten(s: string): string {
-  if (!s || s === "0") return "0";
-  const n = BigInt(s);
-  if (n < 10_000n) return n.toString();
-  // Show in human-readable form
-  return (Number(n) / 1e6).toFixed(2) + "M";
 }

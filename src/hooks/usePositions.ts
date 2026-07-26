@@ -1,17 +1,19 @@
 // src/hooks/usePositions.ts
+// v2.1: Reads positions from localStorage (simulated/demo positions).
+// Also tries to fetch live positions from the subgraph if wallet connected.
+
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
 import { useAccount } from "wagmi";
-import { fetchPositions } from "@/lib/api";
-import { DEMO_POSITIONS, toView, type PositionView } from "@/lib/positions";
 import { useChain } from "@/components/chain/ChainProvider";
+import {
+  getLocalPositions,
+  type LocalPosition,
+} from "@/lib/local-storage";
+import { DEMO_POSITIONS, toView, type PositionView } from "@/lib/positions";
+import { fetchTokenPrices } from "@/lib/client-api";
 
-// v1.1: live positions come from the backend (/api/positions/:address),
-// which reads the Uniswap v3 subgraph and adds fee + IL estimates.
-// A fresh testnet wallet with zero positions falls back to the deterministic
-// demo set so the dashboard is never an empty shell.
-// v1.6: chain-aware.
 export function usePositions() {
   const { address } = useAccount();
   const { chain } = useChain();
@@ -19,39 +21,43 @@ export function usePositions() {
   return useQuery<PositionView[]>({
     queryKey: ["positions", address ?? "demo", chain],
     queryFn: async () => {
-      if (address) {
-        try {
-          const live = await fetchPositions(address, chain);
-          if (live.length > 0) {
-            return live.map(
-              (p): PositionView => ({
-                tokenId: Number(p.tokenId),
-                pair: p.pair,
-                feeTier: p.feeTier,
-                lowerPrice: p.lowerPrice,
-                upperPrice: p.upperPrice,
-                currentPrice: p.currentPrice,
-                valueUSD: p.valueUSD,
-                unclaimedFeesUSD: p.unclaimedFeesUSD,
-                fees24hUSD: p.fees24hUSD,
-                entryPrice: (p.lowerPrice + p.upperPrice) / 2,
-                createdAt: p.createdAt,
-                outOfRangeSince: p.inRange ? null : p.createdAt,
-                inRange: p.inRange,
-                feeApr: p.feeApr,
-                ilPct: p.ilPct,
-                outOfRangeHours: p.inRange
-                  ? 0
-                  : (Date.now() - p.createdAt) / 3_600_000,
-              })
-            );
-          }
-        } catch {
-          // backend unreachable — fall through to demo set
-        }
+      // First check localStorage for user-created positions
+      const localPositions = getLocalPositions();
+      if (localPositions.length > 0) {
+        // Update current prices from CoinGecko
+        const coinId = localPositions[0]?.pair.includes("WETH")
+          ? "ethereum"
+          : localPositions[0]?.pair.includes("WBTC")
+          ? "wrapped-bitcoin"
+          : "ethereum";
+        const prices = await fetchTokenPrices([coinId]);
+        const currentPrice = prices[coinId] ?? 3000;
+
+        return localPositions.map((p): PositionView => {
+          const updatedPrice = p.pair.includes("BTC") ? prices["wrapped-bitcoin"] ?? currentPrice : currentPrice;
+          return toView({
+            tokenId: Number(p.tokenId),
+            pair: p.pair,
+            feeTier: p.feeTier,
+            lowerPrice: p.lowerPrice,
+            upperPrice: p.upperPrice,
+            currentPrice: updatedPrice ?? p.currentPrice,
+            valueUSD: p.valueUSD,
+            unclaimedFeesUSD: p.unclaimedFeesUSD,
+            fees24hUSD: p.fees24hUSD,
+            entryPrice: p.entryPrice,
+            createdAt: p.createdAt,
+            outOfRangeSince: p.outOfRangeSince,
+          });
+        });
       }
+
+      // Fall back to demo positions
       return DEMO_POSITIONS.map(toView);
     },
     staleTime: 30_000,
+    refetchInterval: 60_000,
   });
 }
+
+export type { LocalPosition };

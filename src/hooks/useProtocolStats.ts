@@ -1,13 +1,18 @@
 // src/hooks/useProtocolStats.ts
+// v2.1: Fetches protocol TVL/volume from DefiLlama (client-side).
+
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { fetchProtocolStats, type ProtocolStats } from "@/lib/api";
+import {
+  fetchProtocolStatsClient,
+  type ProtocolStatsClient,
+} from "@/lib/client-api";
 
 export function useProtocolStats() {
-  return useQuery<ProtocolStats>({
+  return useQuery<ProtocolStatsClient>({
     queryKey: ["protocol-stats"],
-    queryFn: fetchProtocolStats,
+    queryFn: fetchProtocolStatsClient,
     staleTime: 300_000,
     refetchInterval: 300_000,
   });

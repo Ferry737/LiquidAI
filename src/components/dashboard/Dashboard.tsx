@@ -1,6 +1,7 @@
 // src/components/dashboard/Dashboard.tsx
-// v1.3: adds live SSE updates — position pills flip in real-time,
-// animated counters update from position_status events, Engine Feed panel.
+// v2.1: Self-contained dashboard — wallet balances via wagmi/viem,
+// client-side strategy engine, live engine feed simulator, open positions
+// from localStorage with live PnL and impermanent loss. No backend dependency.
 
 "use client";
 
@@ -9,30 +10,32 @@ import { useAccount } from "wagmi";
 import Link from "next/link";
 import { usePositions } from "@/hooks/usePositions";
 import { useEventStream } from "@/hooks/useEventStream";
+import { useBalances } from "@/hooks/useBalances";
 import { StatCard } from "./StatCard";
 import { PositionCard } from "./PositionCard";
 import { StrategyPanel } from "./StrategyPanel";
 import { ProtocolStatsStrip } from "./ProtocolStatsStrip";
 import { EngineFeed } from "./EngineFeed";
+import { WalletBalanceCard } from "./WalletBalanceCard";
 import { Card, CardBody } from "@/components/ui/Card";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { Button } from "@/components/ui/Button";
 import { formatUSD, formatPct } from "@/lib/utils";
-import type { StrategyActionDto } from "@/lib/api";
+import type { LocalStrategyAction } from "@/lib/local-storage";
 
 export function Dashboard() {
   const { isConnected } = useAccount();
   const { data, isLoading } = usePositions();
+  const { data: balances } = useBalances();
 
-  // v1.3: Live status overrides from SSE position_status events
+  // v2.1: Live status overrides from simulated event stream
   const [liveStatus, setLiveStatus] = useState<
     Record<string, { inRange: boolean; valueUsd: number; unclaimedFeesUsd: number }>
   >({});
 
-  // v1.3: Strategy action feed from SSE
-  const [actionFeed, setActionFeed] = useState<StrategyActionDto[]>([]);
+  // v2.1: Strategy action feed from simulated event stream
+  const [actionFeed, setActionFeed] = useState<LocalStrategyAction[]>([]);
 
-  // v1.3: SSE callbacks
   const onPositionStatus = useCallback(
     (d: { positionId: string; inRange: boolean; valueUsd: number; unclaimedFeesUsd: number }) => {
       setLiveStatus((prev) => ({
@@ -47,17 +50,17 @@ export function Dashboard() {
     []
   );
 
-  const onStrategyAction = useCallback((d: StrategyActionDto) => {
+  const onStrategyAction = useCallback((d: LocalStrategyAction) => {
     setActionFeed((prev) => [...prev, d].slice(-50));
   }, []);
 
   const sseState = useEventStream({ onPositionStatus, onStrategyAction });
 
-  // Merge live SSE data with fetched positions for display
+  // Merge live data with fetched positions for display
   const positions = useMemo(() => {
     if (!data) return [];
     return data.map((p) => {
-      const live = liveStatus[p.tokenId];
+      const live = liveStatus[String(p.tokenId)];
       if (live) {
         return {
           ...p,
@@ -97,6 +100,11 @@ export function Dashboard() {
 
       <ProtocolStatsStrip />
 
+      {/* v2.1: Wallet balances from wagmi/viem */}
+      {isConnected && balances && (
+        <WalletBalanceCard data={balances} />
+      )}
+
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         <StatCard
           label="Total value"
@@ -125,7 +133,7 @@ export function Dashboard() {
 
       <StrategyPanel positions={positions} />
 
-      {/* v1.3: Engine Feed — live strategy action timeline */}
+      {/* v2.1: Engine Feed — live strategy action timeline */}
       <EngineFeed actions={actionFeed} />
 
       <div>

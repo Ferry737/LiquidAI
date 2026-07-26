@@ -1,24 +1,9 @@
 // next.config.mjs
+// v2.1: Removed backend rewrites — the app is now fully self-contained client-side.
+// All data fetched directly from public APIs (Uniswap subgraph, CoinGecko, public RPCs).
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
-  async rewrites() {
-    // Proxy /api/* to the Fastify backend so the browser only ever talks to
-    // the web origin (no CORS, single tunnel when deployed behind one).
-    // Local dev: BACKEND_URL defaults to localhost:4000. On Vercel, set
-    // BACKEND_URL env var to the public tunnel/backend URL.
-    const backend = process.env.BACKEND_URL || "http://localhost:4000";
-    return [
-      {
-        source: "/api/:path*",
-        destination: `${backend}/api/:path*`,
-      },
-      {
-        source: "/health",
-        destination: `${backend}/health`,
-      },
-    ];
-  },
   webpack: (config) => {
     config.externals.push("pino-pretty", "lokijs", "encoding");
     // Optional Coinbase/Base connector deps we don't use (MetaMask/injected only).

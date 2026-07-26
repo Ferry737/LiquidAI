@@ -1,33 +1,23 @@
 // src/components/settings/Settings.tsx
-// v1.3: Telegram notification settings UI.
-// v1.4: auth-gated — settings load & save require a SIWE session; controls
-// disabled with "Sign in to manage" tooltip when unauthenticated.
+// v2.1: Fully functional settings with localStorage persistence.
+// AI model API base URL/key, model name, Telegram bot token, chat ID,
+// default slippage, preferred fee tier. All inputs validated on save.
 
 "use client";
 
 import { useState, useEffect } from "react";
-import { useAccount } from "wagmi";
 import { Card, CardBody, CardTitle } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import {
-  fetchNotifications,
-  updateNotifications,
-  sendTestNotification,
-} from "@/lib/api";
-import type { NotificationSettingDto } from "@/lib/api";
-import { useAuth } from "@/components/auth/AuthProvider";
+  getSettings,
+  saveSettings,
+  validateSettings,
+  type LocalSettings,
+} from "@/lib/local-storage";
 import { cn } from "@/lib/utils";
+import { FEE_TIERS } from "@/lib/constants";
 
-interface ToggleConfig {
-  key: keyof Pick<
-    NotificationSettingDto,
-    "onRebalance" | "onCompound" | "onStopLoss" | "onFailure"
-  >;
-  label: string;
-  description: string;
-}
-
-const TOGGLES: ToggleConfig[] = [
+const TOGGLES: { key: keyof Pick<LocalSettings, "onRebalance" | "onCompound" | "onStopLoss" | "onFailure">; label: string; description: string }[] = [
   { key: "onRebalance", label: "Rebalance", description: "When the engine rebalances a position" },
   { key: "onCompound", label: "Compound", description: "When fees are auto-compounded" },
   { key: "onStopLoss", label: "Stop-Loss", description: "When a stop-loss is triggered" },
@@ -35,241 +25,260 @@ const TOGGLES: ToggleConfig[] = [
 ];
 
 export function Settings() {
-  const { address } = useAccount();
-  const { isAuthenticated, session } = useAuth();
-  // v1.4: notification settings are keyed by the AUTHENTICATED address.
-  const owner = session?.address ?? address ?? null;
-  const gated = !isAuthenticated || !owner;
-  const gateTitle = gated ? "Sign in to manage" : undefined;
-
-  const [setting, setSetting] = useState<NotificationSettingDto | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [testResult, setTestResult] = useState<string | null>(null);
-  const [chatIdInput, setChatIdInput] = useState("");
+  const [settings, setSettings] = useState<LocalSettings | null>(null);
+  const [errors, setErrors] = useState<string[]>([]);
+  const [saved, setSaved] = useState(false);
+  const [dirty, setDirty] = useState(false);
 
   useEffect(() => {
-    if (gated || !owner) {
-      setSetting(null);
-      setLoading(false);
-      return;
-    }
-    void load(owner);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [owner, gated]);
+    setSettings(getSettings());
+  }, []);
 
-  async function load(who: string) {
-    setLoading(true);
-    try {
-      const s = await fetchNotifications(who);
-      setSetting(s);
-      setChatIdInput(s.telegramChatId ?? "");
-    } catch {
-      // API might not be available / not signed in
-    } finally {
-      setLoading(false);
+  function update<K extends keyof LocalSettings>(key: K, value: LocalSettings[K]) {
+    if (!settings) return;
+    setSettings({ ...settings, [key]: value });
+    setDirty(true);
+    setErrors([]);
+  }
+
+  function handleSave() {
+    if (!settings) return;
+    const errs = validateSettings(settings);
+    setErrors(errs);
+    if (errs.length === 0) {
+      saveSettings(settings);
+      setDirty(false);
+      setSaved(true);
+      setTimeout(() => setSaved(false), 3000);
     }
   }
 
-  async function save(patch: Partial<NotificationSettingDto>) {
-    if (gated || !owner) return;
-    setSaving(true);
-    try {
-      const updated = await updateNotifications(owner, patch);
-      setSetting(updated);
-    } catch {
-      // keep server as source of truth — surface nothing extra here
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  async function handleTest() {
-    if (gated || !owner) return;
-    setTestResult(null);
-    // Save chat ID first if it changed
-    if (chatIdInput !== (setting?.telegramChatId ?? "")) {
-      await save({ telegramChatId: chatIdInput || null, enabled: true });
-    }
-    try {
-      const result = await sendTestNotification(owner);
-      setTestResult(
-        result.ok
-          ? "✅ Test message sent!"
-          : `❌ ${result.error ?? "Failed to send"}`
-      );
-    } catch {
-      setTestResult("❌ Could not reach the API");
-    }
-    setTimeout(() => setTestResult(null), 5000);
+  if (!settings) {
+    return (
+      <Card hover={false}>
+        <CardBody>Loading settings…</CardBody>
+      </Card>
+    );
   }
 
   return (
     <div className="space-y-8">
-      {gated && (
-        <div className="rounded-xl border border-cyan-400/15 bg-brand-500/[0.04] px-4 py-3 text-sm text-cyan-200/80">
-          Connect your wallet and sign in to manage notification settings.
+      {/* Save bar */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-lg font-semibold">Settings</h2>
+          <p className="text-sm text-ink-muted">
+            Configuration is saved locally in your browser.
+          </p>
+        </div>
+        <div className="flex items-center gap-3">
+          {saved && (
+            <span className="text-sm text-[#22892F]">✓ Saved</span>
+          )}
+          {errors.length > 0 && (
+            <span className="text-sm text-negative">
+              {errors.length} error{errors.length > 1 ? "s" : ""}
+            </span>
+          )}
+          <Button onClick={handleSave} disabled={!dirty}>
+            {dirty ? "Save changes" : "Saved"}
+          </Button>
+        </div>
+      </div>
+
+      {errors.length > 0 && (
+        <div className="rounded-xl border border-negative/30 bg-negative/[0.05] px-4 py-3">
+          <ul className="space-y-1 text-sm text-negative">
+            {errors.map((e, i) => (
+              <li key={i}>• {e}</li>
+            ))}
+          </ul>
         </div>
       )}
 
-      <Card hover={false} className={cn(gated && "opacity-50")}>
-        <CardBody className="space-y-6">
-          {/* Telegram Bot Setup */}
-          <div className="space-y-4">
-            <CardTitle>Telegram Notifications</CardTitle>
-
-            <div className="rounded-lg border border-cyan-400/15 bg-brand-500/[0.03] px-4 py-3 text-sm text-ink-muted">
-              <span className="text-brand-500">Setup:</span> Create a bot via{" "}
-              <a
-                href="https://t.me/BotFather"
-                target="_blank"
-                rel="noreferrer"
-                className="text-brand-500 underline hover:text-cyan-200"
-              >
-                @BotFather
-              </a>
-              , set <code className="rounded bg-ink/[0.06] px-1 py-0.5 text-xs">TELEGRAM_BOT_TOKEN</code> in the server env,
-              then get your chat ID from{" "}
-              <a
-                href="https://t.me/userinfobot"
-                target="_blank"
-                rel="noreferrer"
-                className="text-brand-500 underline hover:text-cyan-200"
-              >
-                @userinfobot
-              </a>
-              .
-            </div>
-
-            {/* Chat ID input */}
-            <div className="space-y-2" title={gateTitle}>
-              <label className="text-sm font-medium text-ink-soft">
-                Telegram Chat ID
+      {/* AI Model Configuration */}
+      <Card hover={false}>
+        <CardBody className="space-y-4">
+          <CardTitle>AI Model API</CardTitle>
+          <p className="text-sm text-ink-muted">
+            Configure the LLM used by the strategy engine. Replace demo values with your real API credentials.
+          </p>
+          <div className="grid gap-4 md:grid-cols-2">
+            <Field
+              label="API Base URL"
+              value={settings.aiApiBase}
+              onChange={(v) => update("aiApiBase", v)}
+              placeholder="https://api.openai.com/v1"
+            />
+            <Field
+              label="API Key"
+              value={settings.aiApiKey}
+              onChange={(v) => update("aiApiKey", v)}
+              placeholder="sk-..."
+              type="password"
+            />
+            <Field
+              label="Model Name"
+              value={settings.aiModel}
+              onChange={(v) => update("aiModel", v)}
+              placeholder="gpt-4o-mini"
+            />
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium text-ink-muted">
+                Preferred Fee Tier
               </label>
-              <div className="flex gap-3">
-                <input
-                  type="text"
-                  value={chatIdInput}
-                  disabled={gated}
-                  onChange={(e) => setChatIdInput(e.target.value)}
-                  placeholder="e.g. 123456789"
-                  className="flex-1 rounded-xl border border-ink/10 bg-ink/[0.03] px-4 py-2.5 text-sm outline-none transition-colors placeholder:text-ink-faint focus:border-brand-500/30 disabled:cursor-not-allowed"
-                />
-                <Button
-                  variant="ghost"
-                  onClick={() => void handleTest()}
-                  disabled={gated || loading || !chatIdInput}
-                  title={gateTitle}
-                >
-                  Send test message
-                </Button>
-              </div>
-              {testResult && (
-                <p className="text-sm text-ink-muted">{testResult}</p>
-              )}
+              <select
+                value={settings.preferredFeeTier}
+                onChange={(e) => update("preferredFeeTier", Number(e.target.value))}
+                className="w-full rounded-xl border border-ink/10 bg-surface-page px-3 py-2.5 text-sm text-ink outline-none focus:border-brand-500/30"
+              >
+                {FEE_TIERS.map((f) => (
+                  <option key={f.fee} value={f.fee}>
+                    {f.label}
+                  </option>
+                ))}
+              </select>
             </div>
+          </div>
+        </CardBody>
+      </Card>
 
-            {/* Global enable */}
+      {/* Trading Parameters */}
+      <Card hover={false}>
+        <CardBody className="space-y-4">
+          <CardTitle>Trading Parameters</CardTitle>
+          <div className="grid gap-4 md:grid-cols-2">
+            <Field
+              label="Default Slippage (%)"
+              value={String(settings.defaultSlippagePct)}
+              onChange={(v) => update("defaultSlippagePct", parseFloat(v) || 0)}
+              placeholder="0.5"
+              type="number"
+            />
+            <Field
+              label="Out-of-range alert (hours)"
+              value={settings.onOutOfRangeHrs !== null ? String(settings.onOutOfRangeHrs) : ""}
+              onChange={(v) => update("onOutOfRangeHrs", v ? parseFloat(v) : null)}
+              placeholder="4"
+              type="number"
+            />
+          </div>
+        </CardBody>
+      </Card>
+
+      {/* Telegram Configuration */}
+      <Card hover={false}>
+        <CardBody className="space-y-4">
+          <CardTitle>Telegram Notifications</CardTitle>
+          <div className="rounded-lg border border-cyan-400/15 bg-brand-500/[0.03] px-4 py-3 text-sm text-ink-muted">
+            <span className="text-brand-500">Setup:</span> Create a bot via{" "}
+            <a href="https://t.me/BotFather" target="_blank" rel="noreferrer" className="text-brand-500 underline hover:text-cyan-200">
+              @BotFather
+            </a>
+            , paste the token below, then get your chat ID from{" "}
+            <a href="https://t.me/userinfobot" target="_blank" rel="noreferrer" className="text-brand-500 underline hover:text-cyan-200">
+              @userinfobot
+            </a>
+            .
+          </div>
+          <div className="grid gap-4 md:grid-cols-2">
+            <Field
+              label="Bot Token"
+              value={settings.telegramBotToken}
+              onChange={(v) => update("telegramBotToken", v)}
+              placeholder="123456:ABC-DEF..."
+              type="password"
+            />
+            <Field
+              label="Chat ID"
+              value={settings.telegramChatId}
+              onChange={(v) => update("telegramChatId", v)}
+              placeholder="123456789"
+            />
+          </div>
+          <div className="flex items-center justify-between rounded-lg border border-ink/10 bg-ink/[0.03] px-4 py-3">
+            <div>
+              <div className="text-sm font-medium">Enable notifications</div>
+              <div className="text-xs text-ink-muted">Master switch for all alerts</div>
+            </div>
+            <Toggle
+              checked={settings.notificationsEnabled}
+              onChange={(v) => update("notificationsEnabled", v)}
+            />
+          </div>
+        </CardBody>
+      </Card>
+
+      {/* Alert Events */}
+      <Card hover={false}>
+        <CardBody className="space-y-2">
+          <CardTitle>Alert Events</CardTitle>
+          {TOGGLES.map((t) => (
             <div
+              key={t.key}
               className="flex items-center justify-between rounded-lg border border-ink/10 bg-ink/[0.03] px-4 py-3"
-              title={gateTitle}
             >
               <div>
-                <div className="text-sm font-medium">Enable notifications</div>
-                <div className="text-xs text-ink-muted">
-                  Master switch for all Telegram alerts
-                </div>
+                <div className="text-sm font-medium">{t.label}</div>
+                <div className="text-xs text-ink-muted">{t.description}</div>
               </div>
               <Toggle
-                checked={setting?.enabled ?? false}
-                onChange={(v) => void save({ enabled: v })}
-                disabled={gated || loading || saving}
+                checked={settings[t.key]}
+                onChange={(v) => update(t.key, v)}
               />
             </div>
-          </div>
-
-          {/* Per-event-type toggles */}
-          <div className="space-y-2">
-            <CardTitle>Alert Events</CardTitle>
-            {TOGGLES.map((t) => (
-              <div
-                key={t.key}
-                className="flex items-center justify-between rounded-lg border border-ink/10 bg-ink/[0.03] px-4 py-3"
-                title={gateTitle}
-              >
-                <div>
-                  <div className="text-sm font-medium">{t.label}</div>
-                  <div className="text-xs text-ink-muted">{t.description}</div>
-                </div>
-                <Toggle
-                  checked={setting?.[t.key] ?? false}
-                  onChange={(v) => void save({ [t.key]: v })}
-                  disabled={gated || loading || saving}
-                />
-              </div>
-            ))}
-
-            {/* Out-of-range threshold */}
-            <div
-              className="flex items-center justify-between rounded-lg border border-ink/10 bg-ink/[0.03] px-4 py-3"
-              title={gateTitle}
-            >
-              <div>
-                <div className="text-sm font-medium">Out-of-range threshold</div>
-                <div className="text-xs text-ink-muted">
-                  Alert when a position is out of range longer than N hours
-                </div>
-              </div>
-              <div className="flex items-center gap-2">
-                <input
-                  type="number"
-                  min={0}
-                  max={720}
-                  disabled={gated}
-                  value={setting?.onOutOfRangeHrs ?? ""}
-                  onChange={(e) => {
-                    const v = e.target.value;
-                    void save({
-                      onOutOfRangeHrs: v ? parseFloat(v) : null,
-                    });
-                  }}
-                  placeholder="off"
-                  className="w-20 rounded-lg border border-ink/10 bg-ink/[0.03] px-3 py-1.5 text-center text-sm outline-none focus:border-brand-500/30 disabled:cursor-not-allowed"
-                />
-                <span className="text-xs text-ink-muted">hrs</span>
-              </div>
-            </div>
-          </div>
+          ))}
         </CardBody>
       </Card>
     </div>
   );
 }
 
-// ---- Toggle switch component ----
+function Field({
+  label,
+  value,
+  onChange,
+  placeholder,
+  type = "text",
+}: {
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+  placeholder?: string;
+  type?: string;
+}) {
+  return (
+    <div className="space-y-1.5">
+      <label className="text-xs font-medium text-ink-muted">{label}</label>
+      <input
+        type={type}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder}
+        className="w-full rounded-xl border border-ink/10 bg-ink/[0.03] px-3 py-2.5 text-sm text-ink outline-none transition-colors placeholder:text-ink-faint focus:border-brand-500/30"
+      />
+    </div>
+  );
+}
 
 function Toggle({
   checked,
   onChange,
-  disabled,
 }: {
   checked: boolean;
   onChange: (v: boolean) => void;
-  disabled?: boolean;
 }) {
   return (
     <button
       type="button"
       role="switch"
       aria-checked={checked}
-      disabled={disabled}
       onClick={() => onChange(!checked)}
       className={cn(
         "relative inline-flex h-6 w-11 items-center rounded-full transition-colors duration-200",
         checked
           ? "bg-gradient-to-r from-brand-500 to-brand-400"
-          : "bg-ink/[0.06]",
-        "disabled:opacity-40 disabled:cursor-not-allowed"
+          : "bg-ink/[0.06]"
       )}
     >
       <span

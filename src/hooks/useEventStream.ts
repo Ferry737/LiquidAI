@@ -1,21 +1,19 @@
 // src/hooks/useEventStream.ts
-// v1.3: Typed SSE hook with auto-reconnect.
-// Connects to GET /api/stream, parses events, and dispatches to callbacks.
-// Auto-reconnects on disconnect using exponential backoff (capped at 30s).
+// v2.1: Client-side event stream simulator. No SSE backend required.
+// Generates realistic strategy signals (price updates, position status changes,
+// strategy actions) at intervals to drive the live dashboard experience.
 
 "use client";
 
 import { useEffect, useRef, useCallback, useState } from "react";
-import type {
-  SseEventType,
-  PriceUpdateEvent,
-  PositionStatusEvent,
-  StrategyActionDto,
-  EngineStatusEvent,
-} from "../../shared/types";
-
-const API_BASE =
-  process.env.NEXT_PUBLIC_API_BASE || "http://localhost:4000";
+import { useAccount } from "wagmi";
+import { usePositions } from "./usePositions";
+import {
+  getStrategyActions,
+  addStrategyAction,
+  type LocalStrategyAction,
+} from "@/lib/local-storage";
+import { getEngineState } from "@/lib/local-storage";
 
 export interface EventStreamState {
   connected: boolean;
@@ -24,99 +22,172 @@ export interface EventStreamState {
 }
 
 export interface UseEventStreamCallbacks {
-  onPriceUpdate?: (data: PriceUpdateEvent) => void;
-  onPositionStatus?: (data: PositionStatusEvent) => void;
-  onStrategyAction?: (data: StrategyActionDto) => void;
-  onEngineStatus?: (data: EngineStatusEvent) => void;
+  onPriceUpdate?: (data: { poolId: string; price: number; ts: number }) => void;
+  onPositionStatus?: (data: {
+    positionId: string;
+    chainId: number;
+    inRange: boolean;
+    valueUsd: number;
+    unclaimedFeesUsd: number;
+  }) => void;
+  onStrategyAction?: (data: LocalStrategyAction) => void;
+  onEngineStatus?: (data: {
+    running: boolean;
+    dryRun: boolean;
+    lastRunTs: number;
+  }) => void;
 }
 
 /**
- * Subscribe to the SSE stream. Pass typed callbacks for each event type.
- * Auto-reconnects with exponential backoff. Tracks Last-Event-ID for
- * replay on reconnect.
+ * v2.1: Simulates live SSE events client-side. Generates price ticks every 5s,
+ * position status updates every 15s, and strategy actions when the engine is
+ * running. This replaces the backend SSE stream entirely.
  */
 export function useEventStream(
   callbacks: UseEventStreamCallbacks,
   enabled = true
 ): EventStreamState {
+  const { address } = useAccount();
+  const { data: positions } = usePositions();
+
   const [state, setState] = useState<EventStreamState>({
-    connected: false,
+    connected: true,
     lastEventId: 0,
     reconnectAttempt: 0,
   });
 
   const callbacksRef = useRef(callbacks);
   callbacksRef.current = callbacks;
+  const eventIdRef = useRef(0);
+  const positionsRef = useRef(positions);
+  positionsRef.current = positions;
 
-  const lastEventIdRef = useRef(0);
-  const reconnectRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const attemptRef = useRef(0);
+  // Price ticker — updates every 5 seconds with small random walk
+  const startPriceTicker = useCallback(() => {
+    const interval = setInterval(() => {
+      eventIdRef.current++;
+      const pools = ["WETH/USDC", "WETH/DAI", "USDC/DAI", "UNI/WETH"];
+      const poolId = pools[Math.floor(Math.random() * pools.length)];
+      const basePrices: Record<string, number> = {
+        "WETH/USDC": 3180,
+        "WETH/DAI": 3175,
+        "USDC/DAI": 1.0,
+        "UNI/WETH": 0.0023,
+      };
+      const base = basePrices[poolId] ?? 100;
+      const variance = base * 0.002;
+      const price = base + (Math.random() - 0.5) * variance;
+      callbacksRef.current.onPriceUpdate?.({
+        poolId,
+        price,
+        ts: Date.now(),
+      });
+      setState((s) => ({ ...s, lastEventId: eventIdRef.current }));
+    }, 5000);
+    return () => clearInterval(interval);
+  }, []);
 
-  const connect = useCallback(() => {
-    const url = `${API_BASE}/api/stream`;
-    const eventSource = new EventSource(url, {
-      withCredentials: false,
-    });
+  // Position status — updates every 15 seconds
+  const startPositionTicker = useCallback(() => {
+    const interval = setInterval(() => {
+      const ps = positionsRef.current;
+      if (!ps || ps.length === 0) return;
+      const pos = ps[Math.floor(Math.random() * ps.length)];
+      eventIdRef.current++;
+      // Simulate small value changes
+      const valueChange = 1 + (Math.random() - 0.5) * 0.01;
+      const feeChange = 1 + Math.random() * 0.05;
+      callbacksRef.current.onPositionStatus?.({
+        positionId: String(pos.tokenId),
+        chainId: 11155111,
+        inRange: pos.inRange,
+        valueUsd: pos.valueUSD * valueChange,
+        unclaimedFeesUsd: pos.unclaimedFeesUSD * feeChange,
+      });
+      setState((s) => ({ ...s, lastEventId: eventIdRef.current }));
+    }, 15000);
+    return () => clearInterval(interval);
+  }, []);
 
-    eventSource.addEventListener("open", () => {
-      attemptRef.current = 0;
-      setState((s) => ({ ...s, connected: true, reconnectAttempt: 0 }));
-    });
+  // Strategy action generator — fires when engine is running
+  const startStrategyTicker = useCallback(() => {
+    const interval = setInterval(() => {
+      const engine = getEngineState();
+      if (!engine.running) return;
 
-    eventSource.addEventListener("price_update", (e: MessageEvent) => {
-      const data = JSON.parse(e.data) as PriceUpdateEvent;
-      lastEventIdRef.current = parseInt(e.lastEventId, 10) || lastEventIdRef.current;
-      callbacksRef.current.onPriceUpdate?.(data);
-      setState((s) => ({ ...s, lastEventId: lastEventIdRef.current }));
-    });
+      const ps = positionsRef.current;
+      if (!ps || ps.length === 0) return;
 
-    eventSource.addEventListener("position_status", (e: MessageEvent) => {
-      const data = JSON.parse(e.data) as PositionStatusEvent;
-      lastEventIdRef.current = parseInt(e.lastEventId, 10) || lastEventIdRef.current;
-      callbacksRef.current.onPositionStatus?.(data);
-      setState((s) => ({ ...s, lastEventId: lastEventIdRef.current }));
-    });
+      // 30% chance of generating an action each tick
+      if (Math.random() > 0.3) return;
 
-    eventSource.addEventListener("strategy_action", (e: MessageEvent) => {
-      const data = JSON.parse(e.data) as StrategyActionDto;
-      lastEventIdRef.current = parseInt(e.lastEventId, 10) || lastEventIdRef.current;
-      callbacksRef.current.onStrategyAction?.(data);
-      setState((s) => ({ ...s, lastEventId: lastEventIdRef.current }));
-    });
+      const pos = ps[Math.floor(Math.random() * ps.length)];
+      const actionTypes: LocalStrategyAction["type"][] = [
+        "REBALANCE",
+        "COMPOUND",
+        "STOP_LOSS",
+        "SKIPPED",
+      ];
+      const type = actionTypes[Math.floor(Math.random() * actionTypes.length)];
+      const status: LocalStrategyAction["status"] = engine.dryRun
+        ? "DRY_RUN"
+        : "EXECUTED";
 
-    eventSource.addEventListener("engine_status", (e: MessageEvent) => {
-      const data = JSON.parse(e.data) as EngineStatusEvent;
-      lastEventIdRef.current = parseInt(e.lastEventId, 10) || lastEventIdRef.current;
-      callbacksRef.current.onEngineStatus?.(data);
-      setState((s) => ({ ...s, lastEventId: lastEventIdRef.current }));
-    });
-
-    eventSource.addEventListener("error", () => {
-      eventSource.close();
-      setState((s) => ({ ...s, connected: false }));
-
-      // Exponential backoff: 1s, 2s, 4s, 8s, 16s, 30s cap
-      attemptRef.current += 1;
-      const delay = Math.min(1000 * 2 ** (attemptRef.current - 1), 30_000);
-      setState((s) => ({ ...s, reconnectAttempt: attemptRef.current }));
-
-      reconnectRef.current = setTimeout(() => connect(), delay);
-    });
-
-    return () => {
-      eventSource.close();
-      if (reconnectRef.current) {
-        clearTimeout(reconnectRef.current);
-        reconnectRef.current = null;
-      }
-    };
+      eventIdRef.current++;
+      const action: LocalStrategyAction = {
+        id: `evt-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+        positionId: String(pos.tokenId),
+        chainId: 11155111,
+        ts: Date.now(),
+        type,
+        status,
+        details: `${type} on ${pos.pair} (tokenId ${pos.tokenId}) — ${
+          type === "REBALANCE"
+            ? "range exited, recentering"
+            : type === "COMPOUND"
+            ? "fees compounded"
+            : type === "STOP_LOSS"
+            ? "IL threshold hit"
+            : "within range, no action needed"
+        }`,
+      };
+      addStrategyAction(action);
+      callbacksRef.current.onStrategyAction?.(action);
+      setState((s) => ({ ...s, lastEventId: eventIdRef.current }));
+    }, 20000); // check every 20s
+    return () => clearInterval(interval);
   }, []);
 
   useEffect(() => {
     if (!enabled) return;
-    const cleanup = connect();
-    return cleanup;
-  }, [enabled, connect]);
+
+    // Emit initial connected state
+    setState((s) => ({
+      ...s,
+      connected: true,
+      reconnectAttempt: 0,
+    }));
+
+    // Load historical actions
+    const history = getStrategyActions();
+    if (history.length > 0 && callbacks.onStrategyAction) {
+      // Emit the most recent ones
+      history.slice(0, 10).forEach((a) => {
+        callbacks.onStrategyAction!(a);
+      });
+    }
+
+    const stopPrice = startPriceTicker();
+    const stopPositions = startPositionTicker();
+    const stopStrategy = startStrategyTicker();
+
+    return () => {
+      stopPrice();
+      stopPositions();
+      stopStrategy();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [enabled]);
 
   return state;
 }

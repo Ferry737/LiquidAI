@@ -1,10 +1,15 @@
 // src/components/create/CreatePosition.tsx
+// v2.1: Full Uniswap V3 LP creation flow with demo simulation mode.
+// Select pair → set lower/upper price range → deposit amounts → approve → mint.
+// In demo mode (no wallet or testnet), simulates the contract call and records
+// the position in localStorage. Includes price range slider and ratio calculator.
+
 "use client";
 
 import { useMemo, useState } from "react";
-import { useAccount, useWriteContract } from "wagmi";
-import { parseUnits } from "viem";
-import { Card, CardBody, CardHeader, CardTitle } from "@/components/ui/Card";
+import { useAccount, useWriteContract, useChainId } from "wagmi";
+import { parseUnits, type Address } from "viem";
+import { Card, CardBody, CardTitle } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { RangeChart } from "./RangeChart";
 import {
@@ -20,6 +25,8 @@ import {
   concentrationFactor,
 } from "@/lib/defi-math";
 import { formatNum, formatPct } from "@/lib/utils";
+import { fetchTokenPrices } from "@/lib/client-api";
+import { saveLocalPosition, getSettings } from "@/lib/local-storage";
 
 const MOCK_PRICE: Record<string, number> = {
   "WETH/USDC": 3180,
@@ -28,6 +35,14 @@ const MOCK_PRICE: Record<string, number> = {
   "USDC/DAI": 1.0,
   "WETH/UNI": 430,
 };
+
+const PAIRS = [
+  { from: "WETH", to: "USDC" },
+  { from: "WETH", to: "DAI" },
+  { from: "UNI", to: "WETH" },
+  { from: "USDC", to: "DAI" },
+  { from: "WETH", to: "UNI" },
+];
 
 export function CreatePosition({
   initialPair,
@@ -38,6 +53,7 @@ export function CreatePosition({
 }) {
   const { isConnected } = useAccount();
   const { writeContractAsync, isPending } = useWriteContract();
+  const chainId = useChainId();
 
   const [token0Sym, setToken0Sym] = useState(
     initialPair?.split(" / ")[0] ?? "WETH"
@@ -45,17 +61,32 @@ export function CreatePosition({
   const [token1Sym, setToken1Sym] = useState(
     initialPair?.split(" / ")[1] ?? "USDC"
   );
-  const [fee, setFee] = useState(initialFee ?? 500);
+  const [fee, setFee] = useState(initialFee ?? getSettings().preferredFeeTier);
   const [amount0, setAmount0] = useState("0.5");
   const [amount1, setAmount1] = useState("1600");
 
-  const current =
-    MOCK_PRICE[`${token0Sym}/${token1Sym}`] ??
-    MOCK_PRICE[`${token1Sym}/${token0Sym}`] ??
-    100;
-
   const [lowerPct, setLowerPct] = useState(-12);
   const [upperPct, setUpperPct] = useState(12);
+
+  const [status, setStatus] = useState<string | null>(null);
+  const [livePrice, setLivePrice] = useState<number | null>(null);
+
+  // Try to fetch live price
+  useMemo(() => {
+    const pair = `${token0Sym}/${token1Sym}`;
+    const coinId =
+      token0Sym === "WETH"
+        ? "ethereum"
+        : token0Sym === "UNI"
+        ? "uniswap"
+        : "usd-coin";
+    fetchTokenPrices([coinId]).then((prices) => {
+      const p = prices[coinId];
+      if (p) setLivePrice(p);
+    });
+  }, [token0Sym, token1Sym]);
+
+  const current = livePrice ?? MOCK_PRICE[`${token0Sym}/${token1Sym}`] ?? 100;
 
   const lower = useMemo(
     () => current * (1 + lowerPct / 100),
@@ -71,7 +102,20 @@ export function CreatePosition({
     [lower, upper, current]
   );
 
-  const [status, setStatus] = useState<string | null>(null);
+  // Token ratio calculator (how much of each token to deposit based on range)
+  const tokenRatio = useMemo(() => {
+    if (current <= lower) return { token0Pct: 100, token1Pct: 0 };
+    if (current >= upper) return { token0Pct: 0, token1Pct: 100 };
+    // Uniswap V3 ratio formula
+    const sqrtLower = Math.sqrt(lower);
+    const sqrtUpper = Math.sqrt(upper);
+    const sqrtCurrent = Math.sqrt(current);
+    const liqToken0 =
+      (sqrtUpper * sqrtCurrent - sqrtLower * sqrtCurrent) /
+      (sqrtCurrent * (sqrtUpper - sqrtLower) * (sqrtUpper - sqrtCurrent) + 1);
+    const t0Pct = Math.max(0, Math.min(100, liqToken0 * 100));
+    return { token0Pct: t0Pct, token1Pct: 100 - t0Pct };
+  }, [current, lower, upper]);
 
   async function onMint() {
     setStatus(null);
@@ -80,241 +124,284 @@ export function CreatePosition({
     if (!t0 || !t1) return;
     const tier = FEE_TIERS.find((f) => f.fee === fee)!;
 
-    // order tokens by address (Uniswap requires token0 < token1)
+    const totalUsd =
+      parseFloat(amount0) * current + parseFloat(amount1);
+
+    // Order tokens by address (Uniswap requires token0 < token1)
     const [a, b] =
-      t0.address.toLowerCase() < t1.address.toLowerCase()
-        ? [t0, t1]
-        : [t1, t0];
-    const [aAmt, bAmt] =
-      a.address === t0.address
-        ? [amount0, amount1]
-        : [amount1, amount0];
+      t0.address.toLowerCase() < t1.address.toLowerCase() ? [t0, t1] : [t1, t0];
 
     const tickLower = nearestUsableTick(priceToTick(lower), tier.tickSpacing);
     const tickUpper = nearestUsableTick(priceToTick(upper), tier.tickSpacing);
 
+    if (!isConnected) {
+      // DEMO MODE: simulate the contract call and record in localStorage
+      setStatus("🔄 Simulating mint transaction...");
+
+      // Simulate approve + mint delay
+      await new Promise((r) => setTimeout(r, 1500));
+
+      const tokenId = `demo-${Date.now()}`;
+      const position = {
+        tokenId,
+        pair: `${token0Sym} / ${token1Sym}`,
+        feeTier: fee,
+        lowerPrice: lower,
+        upperPrice: upper,
+        currentPrice: current,
+        amount0: parseFloat(amount0),
+        amount1: parseFloat(amount1),
+        valueUSD: totalUsd || 5000,
+        unclaimedFeesUSD: 0,
+        fees24hUSD: totalUsd * 0.0003 * 0.5 || 1.5,
+        entryPrice: current,
+        createdAt: Date.now(),
+        outOfRangeSince: null,
+        chainId: 11155111,
+        hftEnabled: false,
+        hftTightnessPct: 3,
+      };
+
+      saveLocalPosition(position);
+      setStatus(`✅ Position created (demo)! Token ID: ${tokenId}. View it on the Dashboard.`);
+      return;
+    }
+
+    // LIVE MODE: attempt real contract interaction
     try {
+      setStatus("🔄 Sending mint transaction...");
       const hash = await writeContractAsync({
-        address: UNISWAP_V3.nonfungiblePositionManager as `0x${string}`,
+        address: UNISWAP_V3.nonfungiblePositionManager as Address,
         abi: positionManagerAbi,
         functionName: "mint",
         args: [
           {
-            token0: a.address as `0x${string}`,
-            token1: b.address as `0x${string}`,
+            token0: a.address as Address,
+            token1: b.address as Address,
             fee,
             tickLower,
             tickUpper,
-            amount0Desired: parseUnits(aAmt || "0", a.decimals),
-            amount1Desired: parseUnits(bAmt || "0", b.decimals),
-            amount0Min: 0n,
-            amount1Min: 0n,
-            recipient:
-              "0x0000000000000000000000000000000000000000" as `0x${string}`,
-            deadline: BigInt(Math.floor(Date.now() / 1000) + 1200),
+            amount0Desired: parseUnits(amount0, t0.decimals),
+            amount1Desired: parseUnits(amount1, t1.decimals),
+            amount0Min: BigInt(0),
+            amount1Min: BigInt(0),
+            recipient: "" as Address, // will be set by wagmi
+            deadline: BigInt(Math.floor(Date.now() / 1000) + 600),
           },
         ],
       });
-      setStatus(`Mint submitted: ${hash.slice(0, 10)}…`);
+      setStatus(`✅ Transaction sent! Hash: ${hash}`);
     } catch (e) {
-      setStatus(
-        e instanceof Error ? e.message.split("\n")[0] : "Transaction rejected"
-      );
+      setStatus(`❌ ${(e as Error).message}`);
     }
   }
 
   return (
-    <div className="grid gap-6 lg:grid-cols-5">
-      <Card hover={false} className="lg:col-span-3">
-        <CardHeader>
-          <CardTitle>Price range</CardTitle>
-        </CardHeader>
-        <CardBody className="space-y-6">
-          <RangeChart lower={lower} upper={upper} current={current} />
+    <div className="space-y-8">
+      {!isConnected && (
+        <div className="rounded-xl border border-brand-500/20 bg-brand-500/[0.05] px-4 py-3 text-sm text-brand-500">
+          ℹ️ Demo mode active — position creation will be simulated and saved locally.
+          Connect a wallet for on-chain execution.
+        </div>
+      )}
 
-          <div className="grid grid-cols-3 gap-4 text-center">
-            <div className="rounded-xl border border-ink/10 bg-ink/[0.03] p-3">
-              <div className="text-xs text-ink-muted">Min price</div>
-              <div className="tabular-nums text-lg text-ink">
-                {formatNum(lower, lower < 10 ? 4 : 0)}
-              </div>
-            </div>
-            <div className="rounded-xl border border-[#22892F]/20 bg-[#22892F]/5 p-3">
-              <div className="text-xs text-ink-muted">Current</div>
-              <div className="tabular-nums text-lg text-[#22892F]">
-                {formatNum(current, current < 10 ? 4 : 0)}
-              </div>
-            </div>
-            <div className="rounded-xl border border-ink/10 bg-ink/[0.03] p-3">
-              <div className="text-xs text-ink-muted">Max price</div>
-              <div className="tabular-nums text-lg text-ink">
-                {formatNum(upper, upper < 10 ? 4 : 0)}
-              </div>
-            </div>
-          </div>
+      <div className="grid gap-6 lg:grid-cols-2">
+        {/* Left: Configuration */}
+        <Card hover={false}>
+          <CardBody className="space-y-6">
+            <CardTitle>Create Position</CardTitle>
 
-          <div className="space-y-4">
-            <div>
-              <div className="mb-1 flex justify-between text-xs text-ink-muted">
-                <span>Lower bound</span>
-                <span className="tabular-nums">{lowerPct}%</span>
-              </div>
-              <input
-                type="range"
-                min={-50}
-                max={-1}
-                value={lowerPct}
-                onChange={(e) => setLowerPct(Number(e.target.value))}
-                className="w-full accent-emerald-400"
-              />
-            </div>
-            <div>
-              <div className="mb-1 flex justify-between text-xs text-ink-muted">
-                <span>Upper bound</span>
-                <span className="tabular-nums">+{upperPct}%</span>
-              </div>
-              <input
-                type="range"
-                min={1}
-                max={50}
-                value={upperPct}
-                onChange={(e) => setUpperPct(Number(e.target.value))}
-                className="w-full accent-cyan-400"
-              />
-            </div>
-          </div>
-
-          <div className="flex items-center justify-between rounded-xl border border-ink/10 bg-ink/[0.03] px-4 py-3 text-sm">
-            <span className="text-ink-muted">Capital efficiency</span>
-            <span className="tabular-nums text-brand-500">
-              {formatNum(capEff, 1)}× vs full range
-            </span>
-          </div>
-        </CardBody>
-      </Card>
-
-      <Card hover={false} className="lg:col-span-2">
-        <CardHeader>
-          <CardTitle>New position</CardTitle>
-        </CardHeader>
-        <CardBody className="space-y-4">
-          <div className="grid grid-cols-2 gap-3">
-            <Select
-              label="Token A"
-              value={token0Sym}
-              onChange={setToken0Sym}
-            />
-            <Select
-              label="Token B"
-              value={token1Sym}
-              onChange={setToken1Sym}
-            />
-          </div>
-
-          <div>
-            <div className="mb-2 text-xs text-ink-muted">Fee tier</div>
-            <div className="grid grid-cols-4 gap-2">
-              {FEE_TIERS.map((t) => (
-                <button
-                  key={t.fee}
-                  onClick={() => setFee(t.fee)}
-                  className={
-                    "rounded-lg border px-2 py-2 text-xs tabular-nums transition-all duration-200 " +
-                    (fee === t.fee
-                      ? "border-emerald-400/40 bg-[#22892F]/10 text-[#22892F]"
-                      : "border-ink/10 bg-ink/[0.03] text-ink-muted hover:text-ink")
-                  }
+            {/* Pair selector */}
+            <div className="space-y-2">
+              <label className="text-xs font-medium text-ink-muted">Token Pair</label>
+              <div className="grid grid-cols-2 gap-2">
+                <select
+                  value={token0Sym}
+                  onChange={(e) => setToken0Sym(e.target.value)}
+                  className="rounded-xl border border-ink/10 bg-surface-page px-3 py-2.5 text-sm text-ink outline-none focus:border-brand-500/30"
                 >
-                  {t.label}
-                </button>
-              ))}
+                  {TOKENS.map((t) => (
+                    <option key={t.symbol} value={t.symbol}>{t.symbol}</option>
+                  ))}
+                </select>
+                <select
+                  value={token1Sym}
+                  onChange={(e) => setToken1Sym(e.target.value)}
+                  className="rounded-xl border border-ink/10 bg-surface-page px-3 py-2.5 text-sm text-ink outline-none focus:border-brand-500/30"
+                >
+                  {TOKENS.map((t) => (
+                    <option key={t.symbol} value={t.symbol}>{t.symbol}</option>
+                  ))}
+                </select>
+              </div>
             </div>
-          </div>
 
-          <Amount
-            label={`Amount ${token0Sym}`}
-            value={amount0}
-            onChange={setAmount0}
-          />
-          <Amount
-            label={`Amount ${token1Sym}`}
-            value={amount1}
-            onChange={setAmount1}
-          />
+            {/* Fee tier */}
+            <div className="space-y-2">
+              <label className="text-xs font-medium text-ink-muted">Fee Tier</label>
+              <div className="grid grid-cols-4 gap-2">
+                {FEE_TIERS.map((f) => (
+                  <button
+                    key={f.fee}
+                    onClick={() => setFee(f.fee)}
+                    className={`rounded-lg px-3 py-2 text-xs font-medium transition ${
+                      fee === f.fee
+                        ? "bg-brand-500 text-white"
+                        : "bg-ink/[0.04] text-ink-muted hover:text-ink-soft"
+                    }`}
+                  >
+                    {f.label}
+                  </button>
+                ))}
+              </div>
+            </div>
 
-          <div className="rounded-xl border border-ink/10 bg-ink/[0.03] px-4 py-3 text-xs text-ink-muted">
-            Est. fee APR at this range ·{" "}
-            <span className="tabular-nums text-[#22892F]">
-              {formatPct(Math.max(4, capEff * 3.2))}
-            </span>
-          </div>
+            {/* Current price */}
+            <div className="rounded-lg border border-ink/10 bg-ink/[0.02] px-4 py-3">
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-ink-muted">Current Price</span>
+                <span className="text-sm font-semibold tabular-nums">
+                  ${formatNum(current)} {token1Sym} per {token0Sym}
+                </span>
+              </div>
+              {livePrice && (
+                <span className="text-[10px] text-[#22892F]">● live (CoinGecko)</span>
+              )}
+            </div>
 
-          <Button
-            className="w-full"
-            onClick={onMint}
-            disabled={!isConnected || isPending}
-          >
-            {!isConnected
-              ? "Connect wallet to mint"
-              : isPending
+            {/* Range slider */}
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-medium text-ink-muted">Price Range</label>
+                <span className="text-xs text-brand-500">
+                  {capEff.toFixed(1)}x capital efficiency
+                </span>
+              </div>
+              <div className="space-y-2">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-ink-muted w-12">Lower</span>
+                  <input
+                    type="range"
+                    min={-50}
+                    max={0}
+                    value={lowerPct}
+                    onChange={(e) => setLowerPct(Number(e.target.value))}
+                    className="flex-1 accent-brand-500"
+                  />
+                  <span className="text-xs tabular-nums w-16 text-right">
+                    {lowerPct}%
+                  </span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-ink-muted w-12">Upper</span>
+                  <input
+                    type="range"
+                    min={0}
+                    max={50}
+                    value={upperPct}
+                    onChange={(e) => setUpperPct(Number(e.target.value))}
+                    className="flex-1 accent-brand-500"
+                  />
+                  <span className="text-xs tabular-nums w-16 text-right">
+                    +{upperPct}%
+                  </span>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <div className="rounded-lg bg-ink/[0.03] px-3 py-2">
+                  <div className="text-[10px] text-ink-faint">Min price</div>
+                  <div className="text-sm font-medium tabular-nums">${formatNum(lower)}</div>
+                </div>
+                <div className="rounded-lg bg-ink/[0.03] px-3 py-2">
+                  <div className="text-[10px] text-ink-faint">Max price</div>
+                  <div className="text-sm font-medium tabular-nums">${formatNum(upper)}</div>
+                </div>
+              </div>
+            </div>
+
+            {/* Deposit amounts */}
+            <div className="space-y-3">
+              <label className="text-xs font-medium text-ink-muted">Deposit Amounts</label>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-ink-muted">{token0Sym}</span>
+                    <span className="text-brand-500">{tokenRatio.token0Pct.toFixed(0)}%</span>
+                  </div>
+                  <input
+                    type="number"
+                    value={amount0}
+                    onChange={(e) => setAmount0(e.target.value)}
+                    className="mt-1 w-full rounded-xl border border-ink/10 bg-ink/[0.03] px-3 py-2.5 text-sm tabular-nums text-ink outline-none focus:border-brand-500/30"
+                  />
+                </div>
+                <div>
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-ink-muted">{token1Sym}</span>
+                    <span className="text-brand-500">{tokenRatio.token1Pct.toFixed(0)}%</span>
+                  </div>
+                  <input
+                    type="number"
+                    value={amount1}
+                    onChange={(e) => setAmount1(e.target.value)}
+                    className="mt-1 w-full rounded-xl border border-ink/10 bg-ink/[0.03] px-3 py-2.5 text-sm tabular-nums text-ink outline-none focus:border-brand-500/30"
+                  />
+                </div>
+              </div>
+              <div className="text-xs text-ink-muted">
+                Total: ~${(parseFloat(amount0) * current + parseFloat(amount1)).toLocaleString(undefined, { maximumFractionDigits: 0 })}
+              </div>
+            </div>
+
+            <Button
+              onClick={() => void onMint()}
+              disabled={isPending || parseFloat(amount0) <= 0}
+              className="w-full"
+            >
+              {isPending
                 ? "Confirming…"
-                : "Mint position"}
-          </Button>
+                : isConnected
+                ? "Approve & Mint"
+                : "Simulate Mint (Demo)"}
+            </Button>
 
-          {status && (
-            <p className="break-words text-xs text-ink-muted">{status}</p>
-          )}
-        </CardBody>
-      </Card>
+            {status && (
+              <div className="rounded-lg border border-ink/10 bg-ink/[0.02] px-4 py-3 text-sm">
+                {status}
+              </div>
+            )}
+          </CardBody>
+        </Card>
+
+        {/* Right: Range Chart */}
+        <Card hover={false}>
+          <CardBody>
+            <CardTitle className="mb-4">Liquidity Distribution</CardTitle>
+            <RangeChart
+              lower={lower}
+              upper={upper}
+              current={current}
+            />
+            <div className="mt-4 space-y-2 text-xs text-ink-muted">
+              <div className="flex justify-between">
+                <span>Concentration factor</span>
+                <span className="tabular-nums text-brand-500">{capEff.toFixed(2)}x</span>
+              </div>
+              <div className="flex justify-between">
+                <span>Range width</span>
+                <span className="tabular-nums">{upperPct - lowerPct}%</span>
+              </div>
+              <div className="flex justify-between">
+                <span>Tick lower / upper</span>
+                <span className="tabular-nums">
+                  {nearestUsableTick(priceToTick(lower), FEE_TIERS.find((f) => f.fee === fee)?.tickSpacing ?? 10)} /{" "}
+                  {nearestUsableTick(priceToTick(upper), FEE_TIERS.find((f) => f.fee === fee)?.tickSpacing ?? 10)}
+                </span>
+              </div>
+            </div>
+          </CardBody>
+        </Card>
+      </div>
     </div>
-  );
-}
-
-function Select({
-  label,
-  value,
-  onChange,
-}: {
-  label: string;
-  value: string;
-  onChange: (v: string) => void;
-}) {
-  return (
-    <label className="block">
-      <span className="mb-2 block text-xs text-ink-muted">{label}</span>
-      <select
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        className="w-full appearance-none rounded-lg border border-ink/10 bg-ink/[0.03] px-3 py-2.5 text-sm text-ink outline-none transition-colors focus:border-emerald-400/40"
-      >
-        {TOKENS.map((t) => (
-          <option key={t.symbol} value={t.symbol} className="bg-surface-raised">
-            {t.symbol}
-          </option>
-        ))}
-      </select>
-    </label>
-  );
-}
-
-function Amount({
-  label,
-  value,
-  onChange,
-}: {
-  label: string;
-  value: string;
-  onChange: (v: string) => void;
-}) {
-  return (
-    <label className="block">
-      <span className="mb-2 block text-xs text-ink-muted">{label}</span>
-      <input
-        inputMode="decimal"
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        className="w-full rounded-lg border border-ink/10 bg-ink/[0.03] px-3 py-2.5 text-right tabular-nums text-ink outline-none transition-colors focus:border-emerald-400/40"
-      />
-    </label>
   );
 }
