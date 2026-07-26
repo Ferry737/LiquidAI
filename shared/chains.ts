@@ -98,6 +98,10 @@ export function chainById(chainId: number): ChainInfo | undefined {
   return ALL_CHAINS.find((c) => c.chainId === chainId);
 }
 
+export function chainByIdAny(chainId: number): ChainInfo | undefined {
+  return ALL_CHAINS.find((c) => c.chainId === chainId);
+}
+
 export function isChainSlug(v: unknown): v is ChainSlug {
   return typeof v === "string" && (CHAIN_SLUGS as readonly string[]).includes(v);
 }

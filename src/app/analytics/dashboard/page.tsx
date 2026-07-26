@@ -8,6 +8,7 @@ import type {
   MainnetPolicySettingDto,
   PendingApprovalDto,
 } from "@/shared/types";
+import { CHAINS, chainById } from "@/shared/chains";
 
 export default function AnalyticsDashboardPage() {
   const [dashboard, setDashboard] = useState<AnalyticsDashboardDto | null>(null);
@@ -182,8 +183,7 @@ export default function AnalyticsDashboardPage() {
 }
 
 function HealthCard({ health }: { health: HealthSummaryDto }) {
-  const { CHAINS } = require("../../shared/chains");
-  const chain = Object.values(CHAINS).find(c => c.chainId === health.chainId);
+  const chain = chainById(health.chainId);
   const chainName = chain?.name || `Chain ${health.chainId}`;
 
   return (
@@ -298,8 +298,7 @@ function ApprovalCard({
   onApprove: () => void;
   onReject: () => void;
 }) {
-  const { CHAINS } = require("../../shared/chains");
-  const chain = Object.values(CHAINS).find(c => c.chainId === approval.chainId);
+  const chain = chainById(approval.chainId);
   const chainName = chain?.name || `Chain ${approval.chainId}`;
 
   return (
@@ -344,8 +343,7 @@ function PolicyCard({
   policy: MainnetPolicySettingDto;
   onEdit: () => void;
 }) {
-  const { CHAINS } = require("../../shared/chains");
-  const chain = Object.values(CHAINS).find(c => c.chainId === policy.chainId);
+  const chain = chainById(policy.chainId);
   const chainName = chain?.name || `Chain ${policy.chainId}`;
 
   return (
