@@ -128,7 +128,7 @@ export function StatusPage() {
                   ? `${dep.latencyMs}ms latency`
                   : ""}
                 {dep.error ? ` · ${dep.error}` : ""}
-                {" · checked ${formatTs(dep.lastCheck)}"}
+                {` · checked ${formatTs(dep.lastCheck)}`}
               </div>
             </div>
             <div className="flex items-center gap-3">
