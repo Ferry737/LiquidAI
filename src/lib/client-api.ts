@@ -152,108 +152,171 @@ export function runBacktestClient(
 
   const { initialUsd, rangeWidthPct, backtestConfig } = config;
   const halfWidth = rangeWidthPct / 2 / 100;
-  const dayMs = 86_400_000;
   const gasPerRebalance = 0.5; // ~$0.50 gas on L2/testnet
-  const baseFeeRate = 0.0003; // 0.03% per swap in the pool
+  const poolFeeRate = 0.0005; // 0.05% pool fee tier (WETH/USDC style)
 
-  let lowerPrice = history[0].price * (1 - halfWidth);
-  let upperPrice = history[0].price * (1 + halfWidth);
-  let centerPrice = (lowerPrice + upperPrice) / 2;
+  // Uniswap V3 concentrated-liquidity valuation.
+  // Convention: token1 = quote (USD-pegged), token0 = the volatile asset; price P
+  // is the price of token0 in token1 units. The position holds liquidity L across
+  // [pa, pb]. Value of the position in quote terms at price P is derived from the
+  // canonical amount formulas:
+  //   below range (P<=pa): all token0  -> amount0 = L*(1/sqrt(pa) - 1/sqrt(pb))
+  //   above range (P>=pb): all token1  -> amount1 = L*(sqrt(pb) - sqrt(pa))
+  //   in range:            amount0 = L*(1/sqrt(P) - 1/sqrt(pb)),
+  //                        amount1 = L*(sqrt(P) - sqrt(pa))
+  //   value = amount0*P + amount1
+  const sqrt = Math.sqrt;
 
-  let value = initialUsd;
-  let hodlValue = initialUsd;
+  function positionValue(
+    L: number,
+    P: number,
+    pa: number,
+    pb: number
+  ): number {
+    const sp = sqrt(P);
+    const spa = sqrt(pa);
+    const spb = sqrt(pb);
+    let amount0: number;
+    let amount1: number;
+    if (P <= pa) {
+      amount0 = L * (1 / spa - 1 / spb);
+      amount1 = 0;
+    } else if (P >= pb) {
+      amount0 = 0;
+      amount1 = L * (spb - spa);
+    } else {
+      amount0 = L * (1 / sp - 1 / spb);
+      amount1 = L * (sp - spa);
+    }
+    return amount0 * P + amount1;
+  }
+
+  // Solve the liquidity L that deploys exactly `capitalUsd` (in quote terms) at
+  // price P for the range [pa, pb]. Value is linear in L, so L = capital / value(L=1).
+  function liquidityForCapital(
+    capitalUsd: number,
+    P: number,
+    pa: number,
+    pb: number
+  ): number {
+    const unit = positionValue(1, P, pa, pb);
+    return unit > 0 ? capitalUsd / unit : 0;
+  }
+
+  const startPrice = history[0].price;
+
+  let lowerPrice = startPrice * (1 - halfWidth);
+  let upperPrice = startPrice * (1 + halfWidth);
+  let liquidity = liquidityForCapital(initialUsd, startPrice, lowerPrice, upperPrice);
+
   let feesCum = 0;
+  let totalFeesEarned = 0; // lifetime fees (includes amounts later compounded)
   let gasSpent = 0;
   let rebalanceCount = 0;
   let lastRebalanceTs = history[0].ts;
 
   const series: BacktestPoint[] = [];
 
+  // Concentration factor vs a full-range (v2) position: higher for tighter ranges.
+  // Drives both capital efficiency (fee multiplier) and IL sensitivity implicitly
+  // through the amount math above.
+  function concentration(pa: number, pb: number): number {
+    const denom = 1 - Math.sqrt(pa / pb);
+    return denom > 0 ? 1 / denom : 1;
+  }
+
   for (let i = 1; i < history.length; i++) {
     const point = history[i];
     const prevPrice = history[i - 1].price;
     const price = point.price;
-    const hoursSinceRebalance =
-      (point.ts - lastRebalanceTs) / (60 * 60 * 1000);
+    const hoursSinceRebalance = (point.ts - lastRebalanceTs) / (60 * 60 * 1000);
 
-    // Check if out of range
     const inRange = price >= lowerPrice && price <= upperPrice;
 
-    if (!inRange || hoursSinceRebalance >= backtestConfig.rebalanceAfterHrs) {
-      // Rebalance: remove liquidity + re-add centered on current price
-      // Gas cost
+    // ---- Fee accrual (only when price is inside the active range) ----
+    if (inRange) {
+      // Pool volume proxy: price move drives arbitrage/swap volume through the
+      // tick. Fees earned scale with the position's concentration (share of
+      // in-range liquidity) — tighter ranges capture more per dollar deployed.
+      const priceMovePct = Math.abs(price - prevPrice) / prevPrice;
+      const positionVal = positionValue(liquidity, price, lowerPrice, upperPrice);
+      const conc = Math.min(concentration(lowerPrice, upperPrice), 50);
+      // Swap volume routed through this position ≈ deployed value × price move ×
+      // concentration; LP earns poolFeeRate on that flow.
+      const volumeThroughPosition = positionVal * priceMovePct * conc;
+      const feeEarned = volumeThroughPosition * poolFeeRate;
+      feesCum += feeEarned;
+      totalFeesEarned += feeEarned;
+    }
+
+    // ---- Rebalance triggers: out-of-range, or scheduled cadence ----
+    const scheduledRebalance =
+      hoursSinceRebalance >= backtestConfig.rebalanceAfterHrs;
+    if (!inRange || scheduledRebalance) {
+      // Current position value realized at this price
+      let capital = positionValue(liquidity, price, lowerPrice, upperPrice);
+      // Compound accrued fees back into the position if past threshold
+      if (feesCum >= backtestConfig.compoundMinUsd) {
+        capital += feesCum;
+        feesCum = 0;
+      }
+      // Remove + re-add liquidity centered on current price
       gasSpent += gasPerRebalance;
       rebalanceCount++;
       lastRebalanceTs = point.ts;
-
-      // New centered range
       lowerPrice = price * (1 - halfWidth);
       upperPrice = price * (1 + halfWidth);
-      centerPrice = price;
-
-      // Compound fees if threshold met
-      if (feesCum >= backtestConfig.compoundMinUsd) {
-        value += feesCum;
-        feesCum = 0;
-      }
+      liquidity = liquidityForCapital(capital, price, lowerPrice, upperPrice);
     }
 
-    if (inRange) {
-      // Price ratio from center
-      const ratio = centerPrice > 0 ? price / centerPrice : 1;
-      // IL formula: 2*sqrt(r)/(1+r) - 1
-      const ilPct = ratio > 0 ? (2 * Math.sqrt(ratio)) / (1 + ratio) - 1 : 0;
-
-      // Fee capture: proportional to position share of range and volume
-      const priceChange = Math.abs(price - prevPrice) / prevPrice;
-      const concentration = 1 / (1 - Math.sqrt(lowerPrice / upperPrice));
-      const estimatedVolume = value * priceChange;
-      const fees = estimatedVolume * baseFeeRate * Math.min(concentration, 20);
-      feesCum += fees * 0.5; // ~50% of pool fees go to LPs in range
-
-      // Stop-loss check
-      if (
-        backtestConfig.stopLossIlPct !== null &&
-        Math.abs(ilPct * 100) > backtestConfig.stopLossIlPct
-      ) {
-        // Exit position, keep current value
-        value += feesCum;
+    // ---- Stop-loss: exit + re-enter if IL exceeds threshold ----
+    if (backtestConfig.stopLossIlPct !== null) {
+      // IL vs HODL of the tokens held at last rebalance, at current price.
+      const posVal = positionValue(liquidity, price, lowerPrice, upperPrice);
+      const centerP = (lowerPrice + upperPrice) / 2;
+      const r = centerP > 0 ? price / centerP : 1;
+      const ilPct = r > 0 ? Math.abs((2 * Math.sqrt(r)) / (1 + r) - 1) * 100 : 0;
+      if (ilPct > backtestConfig.stopLossIlPct) {
+        let capital = posVal + feesCum;
         feesCum = 0;
         gasSpent += gasPerRebalance;
-        // Re-enter at current price
-        lowerPrice = price * (1 - halfWidth);
-        upperPrice = price * (1 + halfWidth);
-        centerPrice = price;
         rebalanceCount++;
         lastRebalanceTs = point.ts;
+        lowerPrice = price * (1 - halfWidth);
+        upperPrice = price * (1 + halfWidth);
+        liquidity = liquidityForCapital(capital, price, lowerPrice, upperPrice);
       }
     }
 
-    // HODL tracks token value
-    hodlValue = initialUsd * (price / history[0].price);
-
-    // Position value = initial * (1 + IL_pct * concentration) + cumulative fees
-    const hodlRatio = history[0].price > 0 ? price / history[0].price : 1;
-    const ilFromEntry = centerPrice > 0 ? (2 * Math.sqrt(hodlRatio)) / (1 + hodlRatio) - 1 : 0;
-    value = initialUsd * (1 + ilFromEntry);
+    const posValueNow = positionValue(liquidity, price, lowerPrice, upperPrice);
+    const hodlValue = initialUsd * (price / startPrice);
 
     series.push({
       ts: point.ts,
-      valueUsd: value + feesCum,
+      valueUsd: posValueNow + feesCum,
       hodlUsd: hodlValue,
       feesCumUsd: feesCum,
     });
   }
 
-  const finalValue = (value + feesCum);
+  const lastPrice = history[history.length - 1].price;
+  const finalPositionValue = positionValue(
+    liquidity,
+    lastPrice,
+    lowerPrice,
+    upperPrice
+  );
+  const finalValue = finalPositionValue + feesCum;
+  const hodlValue = initialUsd * (lastPrice / startPrice);
   const netVsHodlPct =
     hodlValue > 0 ? ((finalValue - hodlValue) / hodlValue) * 100 : 0;
-  const ilUsd = value - initialUsd;
+  // IL in USD = LP position value (ex-fees) minus what holding the tokens would be worth.
+  const ilUsd = finalPositionValue - hodlValue;
 
   return {
     finalValueUsd: finalValue,
     hodlValueUsd: hodlValue,
-    feesEarnedUsd: feesCum,
+    feesEarnedUsd: totalFeesEarned,
     ilUsd,
     rebalanceCount,
     gasSpentUsd: gasSpent,
