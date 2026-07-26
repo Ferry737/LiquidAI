@@ -35,8 +35,15 @@ export function usePositions() {
 
         return localPositions.map((p): PositionView => {
           const updatedPrice = p.pair.includes("BTC") ? prices["wrapped-bitcoin"] ?? currentPrice : currentPrice;
+          // LocalPosition.tokenId is a string (e.g. "demo-1785037230577");
+          // Position.tokenId is a number — extract digits, fall back to 0.
+          const numericTokenId = (() => {
+            const digits = p.tokenId.replace(/\D/g, "");
+            const n = Number(digits);
+            return Number.isFinite(n) ? n : 0;
+          })();
           return toView({
-            tokenId: Number(p.tokenId),
+            tokenId: numericTokenId,
             pair: p.pair,
             feeTier: p.feeTier,
             lowerPrice: p.lowerPrice,
