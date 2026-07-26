@@ -21,16 +21,16 @@ import type {
 } from "../../../shared/types";
 
 const PILL_STYLES: Record<DependencyStatusValue, string> = {
-  ok: "bg-emerald-400/10 text-emerald-300 border-emerald-400/30",
-  degraded: "bg-amber-400/10 text-amber-300 border-amber-400/30",
-  down: "bg-red-400/10 text-red-300 border-red-400/30",
-  unknown: "bg-white/[0.04] text-white/40 border-white/10",
+  ok: "bg-[#22892F]/10 text-[#22892F] border-[#22892F]/30",
+  degraded: "bg-[#B26A00]/10 text-[#B26A00] border-[#B26A00]/30",
+  down: "bg-negative/10 text-negative border-negative/30",
+  unknown: "bg-ink/[0.03] text-ink-muted border-ink/10",
 };
 
 const DOT_STYLES: Record<DependencyStatusValue, string> = {
-  ok: "bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.8)]",
-  degraded: "bg-amber-400 shadow-[0_0_8px_rgba(251,191,36,0.8)]",
-  down: "bg-red-400 shadow-[0_0_8px_rgba(248,113,113,0.8)]",
+  ok: "bg-[#22892F] shadow-card",
+  degraded: "bg-amber-400 shadow-card",
+  down: "bg-red-400 shadow-card",
   unknown: "bg-white/30",
 };
 
@@ -92,44 +92,36 @@ export function StatusPage() {
   });
 
   return (
-    <main className="mx-auto max-w-7xl px-6 py-10">
-      <div className="mb-8">
-        <h1 className="text-2xl font-semibold tracking-tight">
-          System <span className="text-emerald-400">Status</span>
-        </h1>
-        <p className="mt-1 text-sm text-white/40">
-          Per-chain engine health and dependency status · refreshes live
-        </p>
-      </div>
+    <div className="space-y-8">
 
       {/* Global engine */}
       <Card className="mb-8 p-6" data-testid="engine-card">
         <div className="flex flex-wrap items-center gap-6">
           <div>
-            <div className="text-xs uppercase tracking-widest text-white/40">
+            <div className="text-xs uppercase tracking-widest text-ink-muted">
               Engine
             </div>
             <div className="mt-1 text-lg font-medium">
               {isLoading ? (
                 <Skeleton className="h-6 w-24" />
               ) : data?.engine.running ? (
-                <span className="text-emerald-300">Running</span>
+                <span className="text-[#22892F]">Running</span>
               ) : (
-                <span className="text-red-300">Stopped</span>
+                <span className="text-negative">Stopped</span>
               )}
             </div>
           </div>
           <div>
-            <div className="text-xs uppercase tracking-widest text-white/40">
+            <div className="text-xs uppercase tracking-widest text-ink-muted">
               Mode
             </div>
             <div className="mt-1 text-lg font-medium">
               {isLoading ? (
                 <Skeleton className="h-6 w-24" />
               ) : data?.engine.dryRun ? (
-                <span className="text-amber-300">Dry run</span>
+                <span className="text-[#B26A00]">Dry run</span>
               ) : (
-                <span className="text-emerald-300">Live</span>
+                <span className="text-[#22892F]">Live</span>
               )}
             </div>
           </div>
@@ -137,7 +129,7 @@ export function StatusPage() {
       </Card>
 
       {/* Per-chain engine health */}
-      <h2 className="mb-4 text-sm font-medium uppercase tracking-widest text-white/40">
+      <h2 className="mb-4 text-sm font-medium uppercase tracking-widest text-ink-muted">
         Chains
       </h2>
       <div className="mb-10 grid gap-4 md:grid-cols-3" data-testid="chain-grid">
@@ -163,16 +155,16 @@ export function StatusPage() {
                 <div className="font-medium">{c.name}</div>
                 <StatusPill status={health} />
               </div>
-              <div className="mt-3 space-y-1 text-sm text-white/50">
+              <div className="mt-3 space-y-1 text-sm text-ink-muted">
                 <div>
                   Last worker run:{" "}
-                  <span className="text-white/80">{formatTs(lastRunTs)}</span>
+                  <span className="text-ink-soft">{formatTs(lastRunTs)}</span>
                 </div>
                 <div>
-                  Chain ID: <span className="text-white/80">{c.chainId}</span>
+                  Chain ID: <span className="text-ink-soft">{c.chainId}</span>
                 </div>
                 {c.lastError && (
-                  <div className="truncate text-red-300/80" title={c.lastError}>
+                  <div className="truncate text-negative/80" title={c.lastError}>
                     {c.lastError}
                   </div>
                 )}
@@ -181,7 +173,7 @@ export function StatusPage() {
                     href={info.blockExplorerUrl}
                     target="_blank"
                     rel="noreferrer"
-                    className="inline-block text-emerald-400/80 hover:text-emerald-300"
+                    className="inline-block text-[#22892F]/80 hover:text-[#22892F]"
                   >
                     Explorer ↗
                   </a>
@@ -193,10 +185,10 @@ export function StatusPage() {
       </div>
 
       {/* Dependencies */}
-      <h2 className="mb-4 text-sm font-medium uppercase tracking-widest text-white/40">
+      <h2 className="mb-4 text-sm font-medium uppercase tracking-widest text-ink-muted">
         Dependencies
       </h2>
-      <Card className="divide-y divide-white/5 p-0" data-testid="dependency-list">
+      <Card className="divide-y divide-ink/10 p-0" data-testid="dependency-list">
         {isLoading && (
           <div className="p-5">
             <Skeleton className="h-24 w-full" />
@@ -209,10 +201,10 @@ export function StatusPage() {
             data-testid={`dep-${dep.name}`}
           >
             <div>
-              <div className="text-sm font-medium text-white/90">
+              <div className="text-sm font-medium text-ink">
                 {dependencyLabel(dep)}
               </div>
-              <div className="mt-0.5 text-xs text-white/40">
+              <div className="mt-0.5 text-xs text-ink-muted">
                 {dep.successCount} ok · {dep.errorCount} errors (10m window)
                 {dep.lastError ? ` · ${dep.lastError}` : ""}
               </div>
@@ -221,6 +213,6 @@ export function StatusPage() {
           </div>
         ))}
       </Card>
-    </main>
+    </div>
   );
 }

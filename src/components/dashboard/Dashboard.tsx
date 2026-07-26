@@ -81,17 +81,11 @@ export function Dashboard() {
   return (
     <div className="space-y-8">
       <div className="flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Dashboard</h1>
-          <p className="mt-1 text-sm text-white/40">
-            Your Uniswap v3 liquidity, managed by rules.
-          </p>
-        </div>
         <div className="flex items-center gap-3">
           {/* Live indicator */}
           {sseState.connected && (
-            <span className="flex items-center gap-1.5 text-xs text-emerald-400">
-              <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-400" />
+            <span className="flex items-center gap-1.5 text-xs text-[#22892F]">
+              <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-[#22892F]" />
               live
             </span>
           )}
@@ -113,13 +107,13 @@ export function Dashboard() {
           label="Unclaimed fees"
           value={totalFees}
           format={(n) => formatUSD(n)}
-          accent="emerald"
+          accent="green"
         />
         <StatCard
           label="Avg fee APR"
           value={avgApr}
           format={(n) => formatPct(n)}
-          accent="cyan"
+          accent="blue"
         />
         <StatCard
           label="In range"
@@ -135,7 +129,7 @@ export function Dashboard() {
       <EngineFeed actions={actionFeed} />
 
       <div>
-        <h2 className="mb-4 text-sm font-medium uppercase tracking-wider text-white/40">
+        <h2 className="mb-4 text-sm font-medium uppercase tracking-wider text-ink-muted">
           Open positions
         </h2>
 
@@ -158,10 +152,10 @@ export function Dashboard() {
         {!isLoading && positions.length === 0 && (
           <Card hover={false}>
             <CardBody className="flex flex-col items-center gap-4 py-16 text-center">
-              <div className="h-12 w-12 rounded-2xl bg-gradient-to-br from-emerald-400/20 to-cyan-400/20" />
+              <div className="h-12 w-12 rounded-2xl bg-gradient-to-br from-brand-500/20 to-brand-400/20" />
               <div>
                 <p className="font-medium">No positions yet</p>
-                <p className="mt-1 text-sm text-white/40">
+                <p className="mt-1 text-sm text-ink-muted">
                   {isConnected
                     ? "Create your first concentrated liquidity position."
                     : "Connect your wallet to get started."}

@@ -200,3 +200,17 @@ export function parseEnabledChains(
   }
   return { slugs: slugs.length ? slugs : [...CHAIN_SLUGS], errors };
 }
+
+
+/**
+ * v1.9: helper referenced by shared/policy.ts. The current shared chains
+ * registry only defines testnet chains, so this returns false for every
+ * known id. Extend the MAINNET chain set here when mainnet goes live.
+ */
+export function isMainnetChainId(chainId: number): boolean {
+  return !ALL_CHAINS.some((c) => c.chainId === chainId);
+}
+
+export function isTestnetChainId(chainId: number): boolean {
+  return ALL_CHAINS.some((c) => c.chainId === chainId);
+}

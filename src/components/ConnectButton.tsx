@@ -13,7 +13,7 @@ export function ConnectButton() {
   if (isConnected && address) {
     return (
       <Button variant="ghost" onClick={() => disconnect()}>
-        <span className="h-2 w-2 rounded-full bg-emerald-400 shadow-[0_0_10px_rgba(52,211,153,0.8)]" />
+        <span className="h-2 w-2 rounded-full bg-[#22892F] shadow-card" />
         {shortAddr(address)}
       </Button>
     );

@@ -1,6 +1,6 @@
 // src/components/dashboard/StrategyDrawer.tsx
 // Slide-out drawer for per-position strategy configuration + action log.
-// Matches the existing dark luxury glassmorphism aesthetic.
+// Matches the existing dark luxury surfacemorphism aesthetic.
 // v1.4: auth-gated (SIWE) — controls disabled with "Sign in to manage"
 // tooltip when unauthenticated; adds one-click "Apply preset" chips.
 
@@ -94,21 +94,21 @@ export function StrategyDrawer({
       <div
         className={
           "fixed right-0 top-0 z-50 h-full w-full max-w-md transform overflow-y-auto " +
-          "border-l border-white/5 bg-base-900/95 backdrop-blur-2xl " +
+          "border-l border-ink/10 bg-surface-page95 backdrop-blur-2xl " +
           "transition-transform duration-300 ease-out " +
           (open ? "translate-x-0" : "translate-x-full")
         }
       >
-        <div className="sticky top-0 z-10 flex items-center justify-between border-b border-white/5 bg-base-900/90 px-6 py-4 backdrop-blur-xl">
+        <div className="sticky top-0 z-10 flex items-center justify-between border-b border-ink/10 bg-surface-page px-6 py-4 backdrop-blur-xl">
           <div>
-            <h3 className="text-sm font-medium text-white/80">
+            <h3 className="text-sm font-medium text-ink-soft">
               Strategy · {pair}
             </h3>
-            <p className="text-xs text-white/40">#{tokenId}</p>
+            <p className="text-xs text-ink-muted">#{tokenId}</p>
           </div>
           <button
             onClick={onClose}
-            className="rounded-lg p-2 text-white/40 transition hover:bg-white/5 hover:text-white/80"
+            className="rounded-lg p-2 text-ink-muted transition hover:bg-ink/[0.04] hover:text-ink-soft"
           >
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
               <path
@@ -121,7 +121,7 @@ export function StrategyDrawer({
           </button>
         </div>
 
-        <div className="flex gap-1 border-b border-white/5 px-6 py-3">
+        <div className="flex gap-1 border-b border-ink/10 px-6 py-3">
           <TabButton active={tab === "config"} onClick={() => setTab("config")}>
             Config
           </TabButton>
@@ -143,7 +143,7 @@ export function StrategyDrawer({
               ) : (
                 <div className="space-y-6">
                   {gated && (
-                    <div className="rounded-xl border border-cyan-400/15 bg-cyan-400/[0.04] px-4 py-3 text-xs text-cyan-200/80">
+                    <div className="rounded-xl border border-cyan-400/15 bg-brand-500/[0.04] px-4 py-3 text-xs text-cyan-200/80">
                       Connect your wallet and sign in to manage this strategy.
                     </div>
                   )}
@@ -151,12 +151,12 @@ export function StrategyDrawer({
                   {/* v1.4: Apply preset chips */}
                   <div
                     className={cn(
-                      "rounded-xl border border-white/5 bg-white/[0.02] px-4 py-4",
+                      "rounded-xl border border-ink/10 bg-ink/[0.03] px-4 py-4",
                       gated && "opacity-40"
                     )}
                     title={gateTitle}
                   >
-                    <div className="mb-3 text-sm font-medium text-white/70">
+                    <div className="mb-3 text-sm font-medium text-ink/70">
                       Apply preset
                     </div>
                     <div className="flex gap-2">
@@ -168,9 +168,9 @@ export function StrategyDrawer({
                           title={gateTitle ?? p.description}
                           className={cn(
                             "flex-1 rounded-lg border px-3 py-2 text-xs font-medium transition",
-                            "border-white/10 bg-white/[0.03] text-white/70",
+                            "border-ink/10 bg-ink/[0.03] text-ink/70",
                             !gated &&
-                              "hover:border-emerald-400/40 hover:text-white",
+                              "hover:border-emerald-400/40 hover:text-ink",
                             gated && "cursor-not-allowed"
                           )}
                         >
@@ -183,16 +183,16 @@ export function StrategyDrawer({
                   {/* Enable toggle */}
                   <div
                     className={cn(
-                      "flex items-center justify-between rounded-xl border border-white/5 bg-white/[0.02] px-4 py-3",
+                      "flex items-center justify-between rounded-xl border border-ink/10 bg-ink/[0.03] px-4 py-3",
                       gated && "opacity-40"
                     )}
                     title={gateTitle}
                   >
                     <div>
-                      <div className="text-sm font-medium text-white/80">
+                      <div className="text-sm font-medium text-ink-soft">
                         Automation enabled
                       </div>
-                      <div className="text-xs text-white/40">
+                      <div className="text-xs text-ink-muted">
                         Worker will evaluate rules on each tick
                       </div>
                     </div>
@@ -257,16 +257,16 @@ export function StrategyDrawer({
                   {/* Stop loss input */}
                   <div
                     className={cn(
-                      "rounded-xl border border-white/5 bg-white/[0.02] px-4 py-4",
+                      "rounded-xl border border-ink/10 bg-ink/[0.03] px-4 py-4",
                       gated && "opacity-40"
                     )}
                     title={gateTitle}
                   >
                     <div className="mb-2 flex items-center justify-between">
-                      <span className="text-sm font-medium text-white/70">
+                      <span className="text-sm font-medium text-ink/70">
                         Stop-loss IL threshold (%)
                       </span>
-                      <span className="text-xs text-white/40">
+                      <span className="text-xs text-ink-muted">
                         Close position if IL exceeds this
                       </span>
                     </div>
@@ -283,9 +283,9 @@ export function StrategyDrawer({
                           setDirty(true);
                         }}
                         placeholder="Disabled"
-                        className="w-24 rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2 text-sm tabular-nums text-white/90 outline-none focus:border-emerald-400/40 disabled:cursor-not-allowed"
+                        className="w-24 rounded-lg border border-ink/10 bg-ink/[0.03] px-3 py-2 text-sm tabular-nums text-ink outline-none focus:border-emerald-400/40 disabled:cursor-not-allowed"
                       />
-                      <span className="text-xs text-white/40">
+                      <span className="text-xs text-ink-muted">
                         Leave empty to disable
                       </span>
                     </div>
@@ -308,7 +308,7 @@ export function StrategyDrawer({
                   </div>
 
                   {update.isError && (
-                    <p className="text-center text-xs text-red-400">
+                    <p className="text-center text-xs text-negative">
                       Failed to save: {(update.error as Error).message}
                     </p>
                   )}
@@ -341,8 +341,8 @@ function TabButton({
       className={
         "rounded-lg px-4 py-2 text-xs font-medium transition " +
         (active
-          ? "bg-white/[0.06] text-white/90"
-          : "text-white/40 hover:text-white/70")
+          ? "bg-ink/[0.04] text-ink"
+          : "text-ink-muted hover:text-ink/70")
       }
     >
       {children}
@@ -366,8 +366,8 @@ function Toggle({
       className={
         "relative h-7 w-12 rounded-full transition disabled:cursor-not-allowed " +
         (checked
-          ? "bg-gradient-to-r from-emerald-400 to-cyan-400"
-          : "bg-white/10")
+          ? "bg-gradient-to-r from-brand-500 to-brand-400"
+          : "bg-ink/[0.06]")
       }
     >
       <span
@@ -406,13 +406,13 @@ function SliderField({
   return (
     <div
       className={cn(
-        "rounded-xl border border-white/5 bg-white/[0.02] px-4 py-4",
+        "rounded-xl border border-ink/10 bg-ink/[0.03] px-4 py-4",
         disabled && "opacity-40"
       )}
       title={title}
     >
       <div className="mb-3 flex items-center justify-between">
-        <span className="text-sm font-medium text-white/70">{label}</span>
+        <span className="text-sm font-medium text-ink/70">{label}</span>
         <div className="flex items-center gap-2">
           <input
             type="number"
@@ -422,9 +422,9 @@ function SliderField({
             step={step}
             disabled={disabled}
             onChange={(e) => onChange(Number(e.target.value))}
-            className="w-16 rounded border border-white/10 bg-white/[0.03] px-2 py-1 text-right text-sm tabular-nums text-white/90 outline-none focus:border-emerald-400/40 disabled:cursor-not-allowed"
+            className="w-16 rounded border border-ink/10 bg-ink/[0.03] px-2 py-1 text-right text-sm tabular-nums text-ink outline-none focus:border-emerald-400/40 disabled:cursor-not-allowed"
           />
-          <span className="text-xs tabular-nums text-white/50">
+          <span className="text-xs tabular-nums text-ink-muted">
             {prefix}
             {formatNum(value, step < 1 ? 1 : 0)}
             {suffix}
@@ -464,9 +464,9 @@ function ActionLogTimeline({
 
   if (!data || data.actions.length === 0) {
     return (
-      <div className="rounded-xl border border-white/5 bg-white/[0.02] px-4 py-8 text-center">
-        <p className="text-sm text-white/40">No actions recorded yet</p>
-        <p className="mt-1 text-xs text-white/30">
+      <div className="rounded-xl border border-ink/10 bg-ink/[0.03] px-4 py-8 text-center">
+        <p className="text-sm text-ink-muted">No actions recorded yet</p>
+        <p className="mt-1 text-xs text-ink-faint">
           The strategy worker logs every decision here
         </p>
       </div>
@@ -479,7 +479,7 @@ function ActionLogTimeline({
         <ActionRow key={a.id} action={a} />
       ))}
       {data.hasMore && (
-        <p className="pt-2 text-center text-xs text-white/30">
+        <p className="pt-2 text-center text-xs text-ink-faint">
           {data.total} total · showing latest {data.actions.length}
         </p>
       )}
@@ -490,10 +490,10 @@ function ActionLogTimeline({
 function ActionRow({ action }: { action: StrategyActionDto }) {
   const color =
     action.status === "EXECUTED"
-      ? "text-emerald-300 bg-emerald-400/10"
+      ? "text-[#22892F] bg-[#22892F]/10"
       : action.status === "FAILED"
-        ? "text-red-300 bg-red-400/10"
-        : "text-white/50 bg-white/[0.06]";
+        ? "text-negative bg-negative/10"
+        : "text-ink-muted bg-ink/[0.04]";
 
   let detail = "";
   try {
@@ -503,16 +503,16 @@ function ActionRow({ action }: { action: StrategyActionDto }) {
   }
 
   return (
-    <div className="flex items-start gap-3 rounded-lg border border-white/5 bg-white/[0.02] px-3 py-2.5">
+    <div className="flex items-start gap-3 rounded-lg border border-ink/10 bg-ink/[0.03] px-3 py-2.5">
       <div className={"mt-0.5 rounded-md px-2 py-0.5 text-[10px] font-bold " + color}>
         {action.status}
       </div>
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2">
-          <span className="text-xs font-medium text-white/80">
+          <span className="text-xs font-medium text-ink-soft">
             {action.type}
           </span>
-          <span className="text-[10px] text-white/30">
+          <span className="text-[10px] text-ink-faint">
             {new Date(action.ts).toLocaleString(undefined, {
               month: "short",
               day: "numeric",
@@ -522,10 +522,10 @@ function ActionRow({ action }: { action: StrategyActionDto }) {
           </span>
         </div>
         {detail && (
-          <p className="mt-0.5 truncate text-xs text-white/40">{detail}</p>
+          <p className="mt-0.5 truncate text-xs text-ink-muted">{detail}</p>
         )}
         {action.txHash && (
-          <p className="mt-0.5 truncate font-mono text-[10px] text-cyan-400/60">
+          <p className="mt-0.5 truncate font-mono text-[10px] text-brand-500/60">
             {action.txHash.slice(0, 18)}…
           </p>
         )}

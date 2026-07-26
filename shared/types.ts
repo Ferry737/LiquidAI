@@ -95,7 +95,7 @@ export interface StrategyConfigDto {
 // ---- v1.2: Strategy action log ----
 
 export type StrategyActionType = "REBALANCE" | "COMPOUND" | "STOP_LOSS" | "SKIPPED";
-export type StrategyActionStatus = "EXECUTED" | "FAILED" | "DRY_RUN";
+export type StrategyActionStatus = "EXECUTED" | "FAILED" | "DRY_RUN" | "PENDING_APPROVAL" | "APPROVED" | "REJECTED";
 
 export interface StrategyActionDto {
   id: string;
@@ -169,7 +169,8 @@ export type SseEventType =
   | "price_update"
   | "position_status"
   | "strategy_action"
-  | "engine_status";
+  | "engine_status"
+  | "emergency_stop";
 
 export interface PriceUpdateEvent {
   poolId: string;
@@ -194,12 +195,20 @@ export interface EngineStatusEvent {
   chainId?: number;
 }
 
+export interface EmergencyStopEvent {
+  active: boolean;
+  reason?: string;
+  stoppedBy?: string;
+  stoppedAt?: number;
+}
+
 /** Discriminated union for all SSE event payloads. */
 export type SseEventData =
   | { type: "price_update"; data: PriceUpdateEvent }
   | { type: "position_status"; data: PositionStatusEvent }
   | { type: "strategy_action"; data: StrategyActionDto }
-  | { type: "engine_status"; data: EngineStatusEvent };
+  | { type: "engine_status"; data: EngineStatusEvent }
+  | { type: "emergency_stop"; data: EmergencyStopEvent };
 
 /** Wire format for a single SSE frame (id, event type, JSON data). */
 export interface SseEvent {
@@ -363,4 +372,129 @@ export interface PositionDailySnapshotDto {
   avgIlPct: number;
   inRangeRatio: number;
   sampleCount: number;
+}
+
+// ---- v1.9: Mainnet policy settings ----
+
+export interface MainnetPolicySettingDto {
+  id: string;
+  chainId: number;
+  enabled: boolean;
+  requireHumanApproval: boolean;
+  maxGasUsd: number;
+  maxDailyVolumeUsd: number;
+  allowedActions: StrategyActionType[];
+  requireLiquidityCheck: boolean;
+  requireRangeSanity: boolean;
+  pauseOnHighFailureRate: boolean;
+  failureRateThreshold: number;
+  updatedAt: number;
+}
+
+export interface UpdatePolicyInput {
+  chainId: number;
+  enabled?: boolean;
+  requireHumanApproval?: boolean;
+  maxGasUsd?: number;
+  maxDailyVolumeUsd?: number;
+  allowedActions?: StrategyActionType[];
+  requireLiquidityCheck?: boolean;
+  requireRangeSanity?: boolean;
+  pauseOnHighFailureRate?: boolean;
+  failureRateThreshold?: number;
+}
+
+export interface ApprovalRequest {
+  chainId: number;
+  actionType: StrategyActionType;
+  positionId: string;
+  owner: string;
+  details: any;
+}
+
+export interface ApprovalResponse {
+  approved: boolean;
+  reason?: string;
+  policyName?: string;
+  actionId?: string;
+}
+
+// ---- v1.9: Emergency stop ----
+
+export interface EmergencyStopDto {
+  active: boolean;
+  reason?: string;
+  stoppedAt?: number;
+  stoppedBy?: string;
+  updatedAt: number;
+}
+
+export interface EmergencyStopInput {
+  active: boolean;
+  reason?: string;
+}
+
+// ---- v1.9: Engine health metrics ----
+
+export interface EngineHealthDto {
+  id: string;
+  chainId: number;
+  runId: string;
+  success: boolean;
+  durationMs: number;
+  actionCount: number;
+  errorCount: number;
+  gasUsd?: number;
+  timestamp: number;
+}
+
+export interface HealthSummaryDto {
+  chainId: number;
+  totalRuns: number;
+  successRate: number;
+  avgDurationMs: number;
+  totalActions: number;
+  totalErrors: number;
+  totalGasUsd: number;
+  lastRunTs: number | null;
+}
+
+export interface AnalyticsDashboardDto {
+  health: HealthSummaryDto[];
+  positions: {
+    total: number;
+    inRange: number;
+    outOfRange: number;
+    totalValueUsd: number;
+    totalFeesUsd: number;
+  };
+  actions: {
+    today: number;
+    week: number;
+    successRate: number;
+  };
+  emergencyStop: EmergencyStopDto;
+}
+
+// ---- v1.9: Approval workflow ----
+
+export interface PendingApprovalDto {
+  id: string;
+  positionId: string;
+  chainId: number;
+  actionType: StrategyActionType;
+  createdAt: number;
+  detailsJson: string;
+  position?: {
+    pool: string;
+    tokenId: string;
+    tickLower: number;
+    tickUpper: number;
+  };
+}
+
+export interface ApprovalActionInput {
+  actionId: string;
+  approve: boolean;
+  reason?: string;
 }

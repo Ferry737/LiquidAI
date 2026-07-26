@@ -19,7 +19,7 @@ export function PoolsTable() {
 
   return (
     <Card hover={false} className="overflow-hidden">
-      <div className="grid grid-cols-12 gap-4 border-b border-white/5 px-6 py-4 text-xs uppercase tracking-wider text-white/40">
+      <div className="grid grid-cols-12 gap-4 border-b border-ink/10 px-6 py-4 text-xs uppercase tracking-wider text-ink-muted">
         <div className="col-span-4">Pool</div>
         <div className="col-span-2 text-right">TVL</div>
         <div className="col-span-2 text-right">Volume 24h</div>
@@ -46,24 +46,24 @@ export function PoolsTable() {
           <Link
             key={p.id}
             href={`/create?pool=${encodeURIComponent(p.pair)}&fee=${p.feeTier}`}
-            className="grid grid-cols-12 items-center gap-4 px-6 py-4 text-sm transition-colors duration-200 hover:bg-white/[0.03] animate-fade-up"
+            className="grid grid-cols-12 items-center gap-4 px-6 py-4 text-sm transition-colors duration-200 hover:bg-ink/[0.03] animate-fade-up"
             style={{ animationDelay: `${i * 40}ms` }}
           >
             <div className="col-span-4 flex items-center gap-3">
-              <span className="text-white/30 tabular-nums">{i + 1}</span>
+              <span className="text-ink-faint tabular-nums">{i + 1}</span>
               <span className="font-medium">{p.pair}</span>
-              <span className="rounded-md bg-white/[0.05] px-1.5 py-0.5 text-xs text-white/50">
+              <span className="rounded-md bg-ink/[0.04] px-1.5 py-0.5 text-xs text-ink-muted">
                 {feeLabel(p.feeTier)}
               </span>
               {p.verifiedApy && <VerifiedApyBadge />}
             </div>
-            <div className="col-span-2 text-right tabular-nums text-white/80">
+            <div className="col-span-2 text-right tabular-nums text-ink-soft">
               {formatUSD(p.tvlUSD)}
             </div>
-            <div className="col-span-2 text-right tabular-nums text-white/80">
+            <div className="col-span-2 text-right tabular-nums text-ink-soft">
               {formatUSD(p.volume24hUSD)}
             </div>
-            <div className="col-span-2 text-right tabular-nums text-emerald-300">
+            <div className="col-span-2 text-right tabular-nums text-[#22892F]">
               {formatPct(p.feeApr)}
             </div>
             <div className="col-span-2 flex justify-end">

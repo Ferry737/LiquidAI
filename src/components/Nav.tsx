@@ -1,12 +1,4 @@
-// src/components/Nav.tsx
-// v1.3: adds Settings link and Engine Toggle.
-// v1.4: adds Backtest link, SIWE Sign-in button, and auth-gated engine toggle.
-// v1.6: adds chain switcher (glass dropdown) + Status link.
-// v1.8: adds Landing/Dashboard split — logo + "Dashboard" link point to the
-// app, and a primary "Launch app" CTA is shown only on the landing route.
-// Product controls (engine toggle, chain switcher) are hidden on the landing
-// page to keep the marketing hero clean.
-
+// src/components/Nav.tsx → Topbar (v1.9, SaaSable light shell)
 "use client";
 
 import Link from "next/link";
@@ -19,30 +11,34 @@ import { useAuth } from "./auth/AuthProvider";
 import { EngineToggle } from "./dashboard/EngineToggle";
 import { ChainSwitcher } from "./chain/ChainSwitcher";
 import { fetchEngineState, updateEngineState } from "@/lib/api";
+import { IconMenu, IconSearch, IconBell } from "./ui/icons";
 
-const LINKS = [
-  { href: "/dashboard", label: "Dashboard" },
-  { href: "/pools", label: "Pools" },
-  { href: "/create", label: "Create" },
-  { href: "/backtest", label: "Backtest" },
-  { href: "/analytics", label: "Analytics" },
-  { href: "/status", label: "Status" },
-  { href: "/settings", label: "Settings" },
-];
+const TITLES: Record<string, { title: string; sub: string }> = {
+  "/dashboard": { title: "Dashboard", sub: "Your Uniswap v3 liquidity, managed by rules." },
+  "/pools": { title: "Pools", sub: "Browse top Uniswap v3 pools by fee yield." },
+  "/create": { title: "Create position", sub: "Deploy a concentrated liquidity range." },
+  "/backtest": { title: "Backtest", sub: "Compare strategy presets on historical data." },
+  "/analytics": { title: "Analytics", sub: "30-day performance across all positions." },
+  "/status": { title: "Status", sub: "Engine health and on-chain state." },
+  "/settings": { title: "Settings", sub: "Account, notifications, and engine config." },
+};
 
-export function Nav() {
+function titleFor(pathname: string) {
+  if (pathname.startsWith("/create")) return TITLES["/create"];
+  const match = Object.keys(TITLES).find((k) => k !== "/create" && pathname.startsWith(k));
+  return match ? TITLES[match] : { title: "LiquidAI", sub: "" };
+}
+
+export function Nav({ onMenu }: { onMenu?: () => void }) {
   const pathname = usePathname();
   const queryClient = useQueryClient();
   const { isAuthenticated } = useAuth();
-
-  const isLanding = pathname === "/";
 
   const { data: engineState } = useQuery({
     queryKey: ["engine-state"],
     queryFn: fetchEngineState,
     staleTime: 30_000,
     retry: false,
-    enabled: !isLanding,
   });
 
   const handleToggle = async (dryRun: boolean) => {
@@ -50,77 +46,65 @@ export function Nav() {
     await queryClient.invalidateQueries({ queryKey: ["engine-state"] });
   };
 
+  const { title, sub } = titleFor(pathname);
+
   return (
-    <header className="sticky top-0 z-50 border-b border-white/5 bg-base-900/60 backdrop-blur-xl">
-      <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-6">
-        <div className="flex items-center gap-8">
-          <Link href="/" className="group flex items-center gap-2.5">
-            <div className="relative h-8 w-8 rounded-xl bg-gradient-to-br from-emerald-400 to-cyan-400 shadow-[0_0_22px_rgba(52,211,153,0.55)] transition-transform duration-300 group-hover:scale-105">
-              <div className="absolute inset-[3px] rounded-lg bg-base-900/90" />
-              <div className="absolute inset-0 flex items-center justify-center text-sm font-bold text-emerald-300">
-                ◇
-              </div>
-            </div>
-            <span className="text-lg font-semibold tracking-tight">
-              Liquid<span className="text-gradient-accent">AI</span>
-            </span>
-          </Link>
-          <nav className="hidden items-center gap-1 lg:flex">
-            {LINKS.map((l) => {
-              const active =
-                l.href === "/"
-                  ? pathname === "/"
-                  : pathname.startsWith(l.href);
-              return (
-                <Link
-                  key={l.href}
-                  href={l.href}
-                  className={cn(
-                    "rounded-lg px-3 py-2 text-sm transition-all duration-200",
-                    active
-                      ? "bg-white/[0.06] text-white"
-                      : "text-white/50 hover:text-white/90"
-                  )}
-                >
-                  {l.label}
-                </Link>
-              );
-            })}
-          </nav>
-        </div>
-        <div className="flex items-center gap-3">
-          {!isLanding && (
-            <>
-              {/* v1.4: engine toggle is a mutating action — gated behind SIWE. */}
-              <div
-                className={cn(
-                  !isAuthenticated && "pointer-events-none opacity-40"
-                )}
-                title={!isAuthenticated ? "Sign in to manage" : undefined}
-              >
-                <EngineToggle
-                  engineState={engineState ?? null}
-                  onToggle={handleToggle}
-                />
-              </div>
-              <span className="hidden rounded-full border border-white/10 px-3 py-1 text-xs text-white/50 sm:inline">
-                Testnets
-              </span>
-              <ChainSwitcher />
-            </>
-          )}
-          <SignInButton />
-          <ConnectButton />
-          {isLanding && (
-            <Link
-              href="/dashboard"
-              className="hidden rounded-xl bg-gradient-to-r from-emerald-400 to-cyan-400 px-4 py-2.5 text-sm font-semibold text-base-900 shadow-[0_8px_32px_rgba(52,211,153,0.35)] transition-all duration-200 hover:brightness-110 md:inline-flex"
-            >
-              Launch app →
-            </Link>
-          )}
-        </div>
+    <header className="topbar flex items-center gap-4 px-4 sm:px-6">
+      <button
+        type="button"
+        onClick={onMenu}
+        className="grid h-9 w-9 place-items-center rounded-lg border border-ink/10 bg-white text-ink-muted hover:text-ink lg:hidden"
+        aria-label="Open menu"
+      >
+        <IconMenu />
+      </button>
+
+      <div className="min-w-0 flex-1">
+        <h1 className="truncate text-lg font-semibold text-ink sm:text-xl">
+          {title}
+        </h1>
+        {sub && (
+          <p className="hidden truncate text-xs text-ink-muted sm:block">
+            {sub}
+          </p>
+        )}
       </div>
+
+      <div className="relative hidden md:block">
+        <IconSearch className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-faint" />
+        <input
+          type="text"
+          placeholder="Search pools…"
+          className="h-9 w-56 rounded-xl border border-ink/10 bg-white pl-9 pr-3 text-sm text-ink placeholder:text-ink-faint focus:border-brand-300 focus:outline-none focus:ring-2 focus:ring-brand-500/30"
+        />
+      </div>
+
+      <button
+        type="button"
+        className="relative grid h-9 w-9 place-items-center rounded-xl border border-ink/10 bg-white text-ink-muted transition-colors hover:text-ink"
+        aria-label="Notifications"
+      >
+        <IconBell />
+        <span className="absolute right-2 top-2 h-1.5 w-1.5 rounded-full bg-brand-500" />
+      </button>
+
+      <div
+        className={cn(!isAuthenticated && "pointer-events-none opacity-40")}
+        title={!isAuthenticated ? "Sign in to manage" : undefined}
+      >
+        <EngineToggle
+          engineState={engineState ?? null}
+          onToggle={handleToggle}
+        />
+      </div>
+
+      <span className="hidden rounded-full border border-ink/10 px-3 py-1 text-xs font-medium text-ink-muted sm:inline">
+        Testnets
+      </span>
+
+      <ChainSwitcher />
+      <SignInButton />
+      <ConnectButton />
     </header>
   );
 }

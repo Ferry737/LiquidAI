@@ -1,14 +1,13 @@
 // src/app/layout.tsx
 import type { Metadata } from "next";
-import { Manrope } from "next/font/google";
+import { Archivo } from "next/font/google";
 import "./globals.css";
 import { Providers } from "@/components/Providers";
-import { Nav } from "@/components/Nav";
-import { SpeedInsights } from "@vercel/speed-insights/next";
+import { AppShell } from "@/components/AppShell";
 
-const manrope = Manrope({
+const archivo = Archivo({
   subsets: ["latin"],
-  variable: "--font-manrope",
+  variable: "--font-archivo",
   display: "swap",
 });
 
@@ -24,15 +23,11 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en" className={manrope.variable}>
-      <body className="font-sans antialiased">
-        <div className="app-aurora" aria-hidden />
-        <div className="app-vignette" aria-hidden />
+    <html lang="en" className={archivo.variable}>
+      <body className="font-sans antialiased bg-surface-page text-ink">
         <Providers>
-          <Nav />
-          <main className="mx-auto max-w-7xl px-6 py-10">{children}</main>
+          <AppShell>{children}</AppShell>
         </Providers>
-        <SpeedInsights />
       </body>
     </html>
   );

@@ -133,21 +133,21 @@ export function CreatePosition({
           <RangeChart lower={lower} upper={upper} current={current} />
 
           <div className="grid grid-cols-3 gap-4 text-center">
-            <div className="rounded-xl border border-white/5 bg-white/[0.02] p-3">
-              <div className="text-xs text-white/40">Min price</div>
-              <div className="tabular-nums text-lg text-white">
+            <div className="rounded-xl border border-ink/10 bg-ink/[0.03] p-3">
+              <div className="text-xs text-ink-muted">Min price</div>
+              <div className="tabular-nums text-lg text-ink">
                 {formatNum(lower, lower < 10 ? 4 : 0)}
               </div>
             </div>
-            <div className="rounded-xl border border-emerald-400/20 bg-emerald-400/5 p-3">
-              <div className="text-xs text-white/40">Current</div>
-              <div className="tabular-nums text-lg text-emerald-300">
+            <div className="rounded-xl border border-[#22892F]/20 bg-[#22892F]/5 p-3">
+              <div className="text-xs text-ink-muted">Current</div>
+              <div className="tabular-nums text-lg text-[#22892F]">
                 {formatNum(current, current < 10 ? 4 : 0)}
               </div>
             </div>
-            <div className="rounded-xl border border-white/5 bg-white/[0.02] p-3">
-              <div className="text-xs text-white/40">Max price</div>
-              <div className="tabular-nums text-lg text-white">
+            <div className="rounded-xl border border-ink/10 bg-ink/[0.03] p-3">
+              <div className="text-xs text-ink-muted">Max price</div>
+              <div className="tabular-nums text-lg text-ink">
                 {formatNum(upper, upper < 10 ? 4 : 0)}
               </div>
             </div>
@@ -155,7 +155,7 @@ export function CreatePosition({
 
           <div className="space-y-4">
             <div>
-              <div className="mb-1 flex justify-between text-xs text-white/40">
+              <div className="mb-1 flex justify-between text-xs text-ink-muted">
                 <span>Lower bound</span>
                 <span className="tabular-nums">{lowerPct}%</span>
               </div>
@@ -169,7 +169,7 @@ export function CreatePosition({
               />
             </div>
             <div>
-              <div className="mb-1 flex justify-between text-xs text-white/40">
+              <div className="mb-1 flex justify-between text-xs text-ink-muted">
                 <span>Upper bound</span>
                 <span className="tabular-nums">+{upperPct}%</span>
               </div>
@@ -184,9 +184,9 @@ export function CreatePosition({
             </div>
           </div>
 
-          <div className="flex items-center justify-between rounded-xl border border-white/5 bg-white/[0.02] px-4 py-3 text-sm">
-            <span className="text-white/50">Capital efficiency</span>
-            <span className="tabular-nums text-cyan-300">
+          <div className="flex items-center justify-between rounded-xl border border-ink/10 bg-ink/[0.03] px-4 py-3 text-sm">
+            <span className="text-ink-muted">Capital efficiency</span>
+            <span className="tabular-nums text-brand-500">
               {formatNum(capEff, 1)}× vs full range
             </span>
           </div>
@@ -212,7 +212,7 @@ export function CreatePosition({
           </div>
 
           <div>
-            <div className="mb-2 text-xs text-white/40">Fee tier</div>
+            <div className="mb-2 text-xs text-ink-muted">Fee tier</div>
             <div className="grid grid-cols-4 gap-2">
               {FEE_TIERS.map((t) => (
                 <button
@@ -221,8 +221,8 @@ export function CreatePosition({
                   className={
                     "rounded-lg border px-2 py-2 text-xs tabular-nums transition-all duration-200 " +
                     (fee === t.fee
-                      ? "border-emerald-400/40 bg-emerald-400/10 text-emerald-300"
-                      : "border-white/5 bg-white/[0.02] text-white/50 hover:text-white")
+                      ? "border-emerald-400/40 bg-[#22892F]/10 text-[#22892F]"
+                      : "border-ink/10 bg-ink/[0.03] text-ink-muted hover:text-ink")
                   }
                 >
                   {t.label}
@@ -242,9 +242,9 @@ export function CreatePosition({
             onChange={setAmount1}
           />
 
-          <div className="rounded-xl border border-white/5 bg-white/[0.02] px-4 py-3 text-xs text-white/50">
+          <div className="rounded-xl border border-ink/10 bg-ink/[0.03] px-4 py-3 text-xs text-ink-muted">
             Est. fee APR at this range ·{" "}
-            <span className="tabular-nums text-emerald-300">
+            <span className="tabular-nums text-[#22892F]">
               {formatPct(Math.max(4, capEff * 3.2))}
             </span>
           </div>
@@ -262,7 +262,7 @@ export function CreatePosition({
           </Button>
 
           {status && (
-            <p className="break-words text-xs text-white/50">{status}</p>
+            <p className="break-words text-xs text-ink-muted">{status}</p>
           )}
         </CardBody>
       </Card>
@@ -281,14 +281,14 @@ function Select({
 }) {
   return (
     <label className="block">
-      <span className="mb-2 block text-xs text-white/40">{label}</span>
+      <span className="mb-2 block text-xs text-ink-muted">{label}</span>
       <select
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="w-full appearance-none rounded-lg border border-white/5 bg-white/[0.02] px-3 py-2.5 text-sm text-white outline-none transition-colors focus:border-emerald-400/40"
+        className="w-full appearance-none rounded-lg border border-ink/10 bg-ink/[0.03] px-3 py-2.5 text-sm text-ink outline-none transition-colors focus:border-emerald-400/40"
       >
         {TOKENS.map((t) => (
-          <option key={t.symbol} value={t.symbol} className="bg-base-800">
+          <option key={t.symbol} value={t.symbol} className="bg-surface-raised">
             {t.symbol}
           </option>
         ))}
@@ -308,12 +308,12 @@ function Amount({
 }) {
   return (
     <label className="block">
-      <span className="mb-2 block text-xs text-white/40">{label}</span>
+      <span className="mb-2 block text-xs text-ink-muted">{label}</span>
       <input
         inputMode="decimal"
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="w-full rounded-lg border border-white/5 bg-white/[0.02] px-3 py-2.5 text-right tabular-nums text-white outline-none transition-colors focus:border-emerald-400/40"
+        className="w-full rounded-lg border border-ink/10 bg-ink/[0.03] px-3 py-2.5 text-right tabular-nums text-ink outline-none transition-colors focus:border-emerald-400/40"
       />
     </label>
   );

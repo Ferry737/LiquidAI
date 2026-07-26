@@ -5,7 +5,7 @@ export function VerifiedApyBadge() {
   return (
     <span
       title="DefiLlama APY and computed fee APR agree within 15%"
-      className="inline-flex items-center gap-1 rounded-md border border-emerald-400/30 bg-emerald-400/10 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wider text-emerald-300 shadow-[0_0_12px_rgba(52,211,153,0.35)]"
+      className="inline-flex items-center gap-1 rounded-md border border-[#22892F]/30 bg-[#22892F]/10 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wider text-[#22892F] shadow-card"
     >
       <svg
         viewBox="0 0 12 12"

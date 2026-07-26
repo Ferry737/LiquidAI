@@ -106,15 +106,8 @@ export function Settings() {
 
   return (
     <div className="space-y-8">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Settings</h1>
-        <p className="mt-1 text-sm text-white/40">
-          Configure Telegram alerts for strategy actions.
-        </p>
-      </div>
-
       {gated && (
-        <div className="rounded-xl border border-cyan-400/15 bg-cyan-400/[0.04] px-4 py-3 text-sm text-cyan-200/80">
+        <div className="rounded-xl border border-cyan-400/15 bg-brand-500/[0.04] px-4 py-3 text-sm text-cyan-200/80">
           Connect your wallet and sign in to manage notification settings.
         </div>
       )}
@@ -125,23 +118,23 @@ export function Settings() {
           <div className="space-y-4">
             <CardTitle>Telegram Notifications</CardTitle>
 
-            <div className="rounded-lg border border-cyan-400/15 bg-cyan-400/[0.03] px-4 py-3 text-sm text-white/60">
-              <span className="text-cyan-300">Setup:</span> Create a bot via{" "}
+            <div className="rounded-lg border border-cyan-400/15 bg-brand-500/[0.03] px-4 py-3 text-sm text-ink-muted">
+              <span className="text-brand-500">Setup:</span> Create a bot via{" "}
               <a
                 href="https://t.me/BotFather"
                 target="_blank"
                 rel="noreferrer"
-                className="text-cyan-300 underline hover:text-cyan-200"
+                className="text-brand-500 underline hover:text-cyan-200"
               >
                 @BotFather
               </a>
-              , set <code className="rounded bg-white/10 px-1 py-0.5 text-xs">TELEGRAM_BOT_TOKEN</code> in the server env,
+              , set <code className="rounded bg-ink/[0.06] px-1 py-0.5 text-xs">TELEGRAM_BOT_TOKEN</code> in the server env,
               then get your chat ID from{" "}
               <a
                 href="https://t.me/userinfobot"
                 target="_blank"
                 rel="noreferrer"
-                className="text-cyan-300 underline hover:text-cyan-200"
+                className="text-brand-500 underline hover:text-cyan-200"
               >
                 @userinfobot
               </a>
@@ -150,7 +143,7 @@ export function Settings() {
 
             {/* Chat ID input */}
             <div className="space-y-2" title={gateTitle}>
-              <label className="text-sm font-medium text-white/80">
+              <label className="text-sm font-medium text-ink-soft">
                 Telegram Chat ID
               </label>
               <div className="flex gap-3">
@@ -160,7 +153,7 @@ export function Settings() {
                   disabled={gated}
                   onChange={(e) => setChatIdInput(e.target.value)}
                   placeholder="e.g. 123456789"
-                  className="flex-1 rounded-xl border border-white/10 bg-white/[0.02] px-4 py-2.5 text-sm outline-none transition-colors placeholder:text-white/30 focus:border-cyan-400/30 disabled:cursor-not-allowed"
+                  className="flex-1 rounded-xl border border-ink/10 bg-ink/[0.03] px-4 py-2.5 text-sm outline-none transition-colors placeholder:text-ink-faint focus:border-brand-500/30 disabled:cursor-not-allowed"
                 />
                 <Button
                   variant="ghost"
@@ -172,18 +165,18 @@ export function Settings() {
                 </Button>
               </div>
               {testResult && (
-                <p className="text-sm text-white/60">{testResult}</p>
+                <p className="text-sm text-ink-muted">{testResult}</p>
               )}
             </div>
 
             {/* Global enable */}
             <div
-              className="flex items-center justify-between rounded-lg border border-white/5 bg-white/[0.02] px-4 py-3"
+              className="flex items-center justify-between rounded-lg border border-ink/10 bg-ink/[0.03] px-4 py-3"
               title={gateTitle}
             >
               <div>
                 <div className="text-sm font-medium">Enable notifications</div>
-                <div className="text-xs text-white/40">
+                <div className="text-xs text-ink-muted">
                   Master switch for all Telegram alerts
                 </div>
               </div>
@@ -201,12 +194,12 @@ export function Settings() {
             {TOGGLES.map((t) => (
               <div
                 key={t.key}
-                className="flex items-center justify-between rounded-lg border border-white/5 bg-white/[0.02] px-4 py-3"
+                className="flex items-center justify-between rounded-lg border border-ink/10 bg-ink/[0.03] px-4 py-3"
                 title={gateTitle}
               >
                 <div>
                   <div className="text-sm font-medium">{t.label}</div>
-                  <div className="text-xs text-white/40">{t.description}</div>
+                  <div className="text-xs text-ink-muted">{t.description}</div>
                 </div>
                 <Toggle
                   checked={setting?.[t.key] ?? false}
@@ -218,12 +211,12 @@ export function Settings() {
 
             {/* Out-of-range threshold */}
             <div
-              className="flex items-center justify-between rounded-lg border border-white/5 bg-white/[0.02] px-4 py-3"
+              className="flex items-center justify-between rounded-lg border border-ink/10 bg-ink/[0.03] px-4 py-3"
               title={gateTitle}
             >
               <div>
                 <div className="text-sm font-medium">Out-of-range threshold</div>
-                <div className="text-xs text-white/40">
+                <div className="text-xs text-ink-muted">
                   Alert when a position is out of range longer than N hours
                 </div>
               </div>
@@ -241,9 +234,9 @@ export function Settings() {
                     });
                   }}
                   placeholder="off"
-                  className="w-20 rounded-lg border border-white/10 bg-white/[0.02] px-3 py-1.5 text-center text-sm outline-none focus:border-cyan-400/30 disabled:cursor-not-allowed"
+                  className="w-20 rounded-lg border border-ink/10 bg-ink/[0.03] px-3 py-1.5 text-center text-sm outline-none focus:border-brand-500/30 disabled:cursor-not-allowed"
                 />
-                <span className="text-xs text-white/40">hrs</span>
+                <span className="text-xs text-ink-muted">hrs</span>
               </div>
             </div>
           </div>
@@ -274,8 +267,8 @@ function Toggle({
       className={cn(
         "relative inline-flex h-6 w-11 items-center rounded-full transition-colors duration-200",
         checked
-          ? "bg-gradient-to-r from-emerald-400 to-cyan-400"
-          : "bg-white/10",
+          ? "bg-gradient-to-r from-brand-500 to-brand-400"
+          : "bg-ink/[0.06]",
         "disabled:opacity-40 disabled:cursor-not-allowed"
       )}
     >

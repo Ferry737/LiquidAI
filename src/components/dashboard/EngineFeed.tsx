@@ -49,14 +49,14 @@ export function EngineFeed({
       <CardBody className="space-y-3">
         <div className="flex items-center justify-between">
           <CardTitle>Engine Feed</CardTitle>
-          <span className="flex items-center gap-1.5 text-xs text-white/40">
-            <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-400" />
+          <span className="flex items-center gap-1.5 text-xs text-ink-muted">
+            <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-[#22892F]" />
             live
           </span>
         </div>
 
         {items.length === 0 ? (
-          <div className="py-8 text-center text-sm text-white/30">
+          <div className="py-8 text-center text-sm text-ink-faint">
             Waiting for engine activity…
           </div>
         ) : (
@@ -73,10 +73,10 @@ export function EngineFeed({
 
 function FeedRow({ item }: { item: FeedItem }) {
   const statusConfig = {
-    EXECUTED: { color: "text-emerald-300", dot: "bg-emerald-400", glow: "shadow-[0_0_8px_rgba(52,211,153,0.4)]" },
-    FAILED: { color: "text-red-300", dot: "bg-red-400", glow: "shadow-[0_0_8px_rgba(248,113,113,0.4)]" },
-    DRY_RUN: { color: "text-cyan-300", dot: "bg-cyan-400", glow: "shadow-[0_0_8px_rgba(34,211,238,0.4)]" },
-    SKIPPED: { color: "text-zinc-400", dot: "bg-zinc-500", glow: "" },
+    EXECUTED: { color: "text-[#22892F]", dot: "bg-[#22892F]", glow: "shadow-card" },
+    FAILED: { color: "text-negative", dot: "bg-red-400", glow: "shadow-card" },
+    DRY_RUN: { color: "text-brand-500", dot: "bg-brand-500", glow: "shadow-card" },
+    SKIPPED: { color: "text-ink-faint", dot: "bg-ink-faint", glow: "" },
   } as const;
 
   // The status might be SKIPPED for the action type
@@ -97,8 +97,8 @@ function FeedRow({ item }: { item: FeedItem }) {
   return (
     <div
       className={cn(
-        "flex items-center gap-3 rounded-lg border border-white/5 bg-white/[0.02] px-3 py-2 transition-all duration-300",
-        item.isNew && "border-white/10 bg-white/[0.04]"
+        "flex items-center gap-3 rounded-lg border border-ink/10 bg-ink/[0.03] px-3 py-2 transition-all duration-300",
+        item.isNew && "border-ink/10 bg-ink/[0.03]"
       )}
     >
       <span className={cn("h-2 w-2 shrink-0 rounded-full", cfg.dot, cfg.glow)} />
@@ -108,12 +108,12 @@ function FeedRow({ item }: { item: FeedItem }) {
             {item.type}
           </span>
           {details.gasCostUsd !== undefined && (
-            <span className="ml-2 text-xs text-white/30">
+            <span className="ml-2 text-xs text-ink-faint">
               gas ~${details.gasCostUsd.toFixed(2)}
             </span>
           )}
         </div>
-        <div className="flex shrink-0 items-center gap-2 text-xs text-white/30">
+        <div className="flex shrink-0 items-center gap-2 text-xs text-ink-faint">
           {details.expectedAmount0 && (
             <span className="tabular-nums">
               {shorten(details.expectedAmount0)} / {shorten(details.expectedAmount1 ?? "")}

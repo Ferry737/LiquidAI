@@ -1,4 +1,4 @@
-// src/components/dashboard/StatCard.tsx
+// src/components/dashboard/StatCard.tsx — SaaSable KPI card (v1.9)
 "use client";
 
 import { Card, CardBody } from "@/components/ui/Card";
@@ -8,33 +8,42 @@ interface Props {
   label: string;
   value: number;
   format: (n: number) => string;
-  accent?: "emerald" | "cyan" | "white";
+  accent?: "brand" | "green" | "blue" | "ink";
   sub?: string;
+  delta?: { value: string; up: boolean };
 }
 
 export function StatCard({
   label,
   value,
   format,
-  accent = "white",
+  accent = "ink",
   sub,
+  delta,
 }: Props) {
   const color =
-    accent === "emerald"
-      ? "text-emerald-300"
-      : accent === "cyan"
-        ? "text-cyan-300"
-        : "text-white";
+    accent === "green"
+      ? "text-[#22892F]"
+      : accent === "blue"
+      ? "text-brand-500"
+      : accent === "brand"
+      ? "text-brand-600"
+      : "text-ink";
   return (
     <Card>
-      <CardBody className="space-y-2">
-        <div className="text-xs uppercase tracking-wider text-white/40">
-          {label}
-        </div>
-        <div className={`text-2xl font-semibold ${color}`}>
+      <CardBody className="space-y-1">
+        <div className="kpi-label">{label}</div>
+        <div className={`kpi-value ${color}`}>
           <AnimatedNumber value={value} format={format} />
         </div>
-        {sub && <div className="text-xs text-white/40">{sub}</div>}
+        <div className="flex items-center gap-2">
+          {delta && (
+            <span className={`kpi-delta ${delta.up ? "up" : "down"}`}>
+              {delta.up ? "▲" : "▼"} {delta.value}
+            </span>
+          )}
+          {sub && <span className="text-xs text-ink-muted">{sub}</span>}
+        </div>
       </CardBody>
     </Card>
   );

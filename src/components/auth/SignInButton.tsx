@@ -17,7 +17,7 @@ export function SignInButton() {
   if (isAuthenticated) {
     return (
       <Button variant="ghost" onClick={() => void signOut()} title="Sign out">
-        <span className="h-2 w-2 rounded-full bg-cyan-400 shadow-[0_0_10px_rgba(34,211,238,0.8)]" />
+        <span className="h-2 w-2 rounded-full bg-brand-500 shadow-card" />
         Signed in
       </Button>
     );

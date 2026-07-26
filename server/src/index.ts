@@ -30,6 +30,7 @@ import { engineRoutes } from "./routes/engine";
 import { authRoutes } from "./routes/auth";
 import { backtestRoutes } from "./routes/backtests";
 import { statusRoutes } from "./routes/status";
+import { analyticsDashboardRoutes } from "./routes/analyticsDashboard";
 
 // v1.6: nightly retention at 03:10 UTC.
 const RETENTION_INTERVAL_MS = 24 * 3_600_000;
@@ -156,6 +157,8 @@ async function main(): Promise<void> {
   await app.register(backtestRoutes);
   // v1.6 routes (/metrics + /api/status)
   await app.register(statusRoutes);
+  // v1.9 routes (analytics dashboard, policies, emergency stop)
+  await app.register(analyticsDashboardRoutes);
 
   // v1.3: Start the stream poller (publishes DB changes to SSE subscribers)
   if (hasDatabase()) {

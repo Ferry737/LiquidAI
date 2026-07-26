@@ -12,12 +12,9 @@ import { useChain } from "./ChainProvider";
 import { ALL_CHAINS, type ChainSlug } from "../../../shared/chains";
 
 const CHAIN_ORB: Record<ChainSlug, string> = {
-  sepolia: "from-indigo-400 to-purple-500",
-  "arbitrum-sepolia": "from-sky-400 to-blue-600",
-  "base-sepolia": "from-blue-400 to-cyan-500",
-  ethereum: "from-slate-300 to-slate-500",
-  arbitrum: "from-sky-400 to-blue-700",
-  base: "from-blue-400 to-indigo-500",
+  sepolia: "from-brand-500 to-brand-700",
+  "arbitrum-sepolia": "from-brand-400 to-brand-600",
+  "base-sepolia": "from-brand-500 to-brand-800",
 };
 
 function ChainIcon({ slug, active }: { slug: ChainSlug; active?: boolean }) {
@@ -27,7 +24,7 @@ function ChainIcon({ slug, active }: { slug: ChainSlug; active?: boolean }) {
       className={cn(
         "inline-block h-4 w-4 rounded-full bg-gradient-to-br",
         CHAIN_ORB[slug],
-        active && "ring-2 ring-emerald-400/70 shadow-[0_0_12px_rgba(52,211,153,0.6)]"
+        active && "ring-2 ring-brand-500/60 shadow-card"
       )}
     />
   );
@@ -66,9 +63,9 @@ export function ChainSwitcher() {
         type="button"
         onClick={() => setOpen((o) => !o)}
         className={cn(
-          "flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-3 py-1.5",
-          "text-sm text-white/80 backdrop-blur-xl transition-all duration-200",
-          "hover:border-white/20 hover:bg-white/[0.08]"
+          "flex items-center gap-2 rounded-xl border border-ink/10 bg-ink/[0.03] px-3 py-1.5",
+          "text-sm text-ink-soft backdrop-blur-xl transition-all duration-200",
+          "hover:border-ink/20 hover:bg-ink/[0.05]"
         )}
         aria-haspopup="listbox"
         aria-expanded={open}
@@ -76,7 +73,7 @@ export function ChainSwitcher() {
         <ChainIcon slug={chain} active />
         <span className="hidden sm:inline">{chainInfo.name}</span>
         <svg
-          className={cn("h-3 w-3 text-white/40 transition-transform", open && "rotate-180")}
+          className={cn("h-3 w-3 text-ink-muted transition-transform", open && "rotate-180")}
           viewBox="0 0 12 12"
           fill="none"
         >
@@ -89,7 +86,7 @@ export function ChainSwitcher() {
           role="listbox"
           className={cn(
             "absolute right-0 z-50 mt-2 w-56 overflow-hidden rounded-2xl",
-            "border border-white/10 bg-base-900/90 shadow-2xl shadow-black/50 backdrop-blur-2xl"
+            "border border-ink/10 bg-surface-page shadow-card backdrop-blur-2xl"
           )}
         >
           {ALL_CHAINS.map((c) => {
@@ -105,14 +102,14 @@ export function ChainSwitcher() {
                 className={cn(
                   "flex w-full items-center gap-3 px-4 py-3 text-left text-sm transition-colors",
                   active
-                    ? "bg-emerald-400/10 text-white"
-                    : "text-white/60 hover:bg-white/[0.06] hover:text-white"
+                    ? "bg-[#22892F]/10 text-ink"
+                    : "text-ink-muted hover:bg-ink/[0.04] hover:text-ink"
                 )}
               >
                 <ChainIcon slug={c.slug} active={active} />
                 <span className="flex-1">{c.name}</span>
                 {active && (
-                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.8)]" />
+                  <span className="h-1.5 w-1.5 rounded-full bg-[#22892F] shadow-card" />
                 )}
               </button>
             );

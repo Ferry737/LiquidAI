@@ -2,7 +2,7 @@
 // v1.4: Backtest page — pool selector, date range, initial amount, preset
 // cards + custom mode, "Run comparison" (all three presets in parallel),
 // multi-line Recharts value-over-time chart, results table, winner card.
-// Dark luxury glassmorphism, consistent with the rest of the app.
+// Dark luxury surfacemorphism, consistent with the rest of the app.
 
 "use client";
 
@@ -157,15 +157,14 @@ export function Backtest() {
   return (
     <div className="space-y-8">
       <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Backtest</h1>
-        <p className="mt-1 text-sm text-white/40">
+          <p className="text-sm text-ink-muted">
           Replay historical pool data hour-by-hour and compare strategy presets
           against HODL. Fee estimates are approximations — not tick-precise.
         </p>
       </div>
 
       {!isAuthenticated && (
-        <div className="rounded-xl border border-cyan-400/15 bg-cyan-400/[0.04] px-4 py-3 text-sm text-cyan-200/80">
+        <div className="rounded-xl border border-cyan-400/15 bg-brand-500/[0.04] px-4 py-3 text-sm text-cyan-200/80">
           Connect your wallet and sign in to run backtests.
         </div>
       )}
@@ -178,14 +177,14 @@ export function Backtest() {
           <div className="grid gap-4 md:grid-cols-4">
             {/* Pool selector */}
             <label className="space-y-1.5 md:col-span-2">
-              <span className="text-xs font-medium text-white/50">Pool</span>
+              <span className="text-xs font-medium text-ink-muted">Pool</span>
               {poolsLoading ? (
                 <Skeleton className="h-10" />
               ) : (
                 <select
                   value={poolId}
                   onChange={(e) => setPoolId(e.target.value)}
-                  className="w-full rounded-xl border border-white/10 bg-base-900 px-3 py-2.5 text-sm text-white/90 outline-none transition-colors focus:border-emerald-400/40"
+                  className="w-full rounded-xl border border-ink/10 bg-surface-page px-3 py-2.5 text-sm text-ink outline-none transition-colors focus:border-emerald-400/40"
                 >
                   <option value="">Select a pool…</option>
                   {pools?.map((p) => (
@@ -199,31 +198,31 @@ export function Backtest() {
             </label>
 
             <label className="space-y-1.5">
-              <span className="text-xs font-medium text-white/50">From</span>
+              <span className="text-xs font-medium text-ink-muted">From</span>
               <input
                 type="date"
                 value={from}
                 max={to}
                 onChange={(e) => setFrom(e.target.value)}
-                className="w-full rounded-xl border border-white/10 bg-white/[0.02] px-3 py-2.5 text-sm text-white/90 outline-none focus:border-emerald-400/40"
+                className="w-full rounded-xl border border-ink/10 bg-ink/[0.03] px-3 py-2.5 text-sm text-ink outline-none focus:border-emerald-400/40"
               />
             </label>
 
             <label className="space-y-1.5">
-              <span className="text-xs font-medium text-white/50">To</span>
+              <span className="text-xs font-medium text-ink-muted">To</span>
               <input
                 type="date"
                 value={to}
                 min={from}
                 max={toDateInput(Date.now())}
                 onChange={(e) => setTo(e.target.value)}
-                className="w-full rounded-xl border border-white/10 bg-white/[0.02] px-3 py-2.5 text-sm text-white/90 outline-none focus:border-emerald-400/40"
+                className="w-full rounded-xl border border-ink/10 bg-ink/[0.03] px-3 py-2.5 text-sm text-ink outline-none focus:border-emerald-400/40"
               />
             </label>
           </div>
 
           <label className="block max-w-xs space-y-1.5">
-            <span className="text-xs font-medium text-white/50">
+            <span className="text-xs font-medium text-ink-muted">
               Initial amount (USD)
             </span>
             <input
@@ -232,7 +231,7 @@ export function Backtest() {
               max={10_000_000}
               value={initialUsd}
               onChange={(e) => setInitialUsd(Number(e.target.value))}
-              className="w-full rounded-xl border border-white/10 bg-white/[0.02] px-3 py-2.5 text-sm tabular-nums text-white/90 outline-none focus:border-emerald-400/40"
+              className="w-full rounded-xl border border-ink/10 bg-ink/[0.03] px-3 py-2.5 text-sm tabular-nums text-ink outline-none focus:border-emerald-400/40"
             />
           </label>
         </CardBody>
@@ -248,7 +247,7 @@ export function Backtest() {
               "transition-all",
               customMode && "opacity-40",
               !customMode &&
-                "border-white/10"
+                "border-ink/10"
             )}
           >
             <CardBody className="space-y-3">
@@ -262,24 +261,24 @@ export function Backtest() {
                 />
                 <span className="text-sm font-semibold">{p.label}</span>
               </div>
-              <p className="text-xs leading-relaxed text-white/40">
+              <p className="text-xs leading-relaxed text-ink-muted">
                 {p.description}
               </p>
-              <dl className="space-y-1 text-xs text-white/60">
+              <dl className="space-y-1 text-xs text-ink-muted">
                 <div className="flex justify-between">
-                  <dt className="text-white/35">Range width</dt>
+                  <dt className="text-ink-faint">Range width</dt>
                   <dd className="tabular-nums">±{p.rangeWidthPct / 2}%</dd>
                 </div>
                 <div className="flex justify-between">
-                  <dt className="text-white/35">Rebalance after</dt>
+                  <dt className="text-ink-faint">Rebalance after</dt>
                   <dd className="tabular-nums">{p.config.rebalanceAfterHrs}h</dd>
                 </div>
                 <div className="flex justify-between">
-                  <dt className="text-white/35">Compound min</dt>
+                  <dt className="text-ink-faint">Compound min</dt>
                   <dd className="tabular-nums">${p.config.compoundMinUsd}</dd>
                 </div>
                 <div className="flex justify-between">
-                  <dt className="text-white/35">Stop-loss IL</dt>
+                  <dt className="text-ink-faint">Stop-loss IL</dt>
                   <dd className="tabular-nums">
                     {p.config.stopLossIlPct !== null
                       ? `${p.config.stopLossIlPct}%`
@@ -292,7 +291,7 @@ export function Backtest() {
         ))}
 
         {/* Custom mode card */}
-        <Card hover={false} className={cn(customMode && "border-emerald-400/30")}>
+        <Card hover={false} className={cn(customMode && "border-[#22892F]/30")}>
           <CardBody className="space-y-3">
             <div className="flex items-center justify-between">
               <span className="text-sm font-semibold">Custom</span>
@@ -301,8 +300,8 @@ export function Backtest() {
                 className={cn(
                   "rounded-lg px-2.5 py-1 text-[11px] font-medium transition",
                   customMode
-                    ? "bg-emerald-400/15 text-emerald-300"
-                    : "bg-white/[0.06] text-white/50 hover:text-white/80"
+                    ? "bg-[#22892F]/10 text-[#22892F]"
+                    : "bg-ink/[0.04] text-ink-muted hover:text-ink-soft"
                 )}
               >
                 {customMode ? "Enabled" : "Enable"}
@@ -335,7 +334,7 @@ export function Backtest() {
                 step={0.1}
               />
               <div className="flex items-center justify-between gap-2">
-                <span className="text-[11px] text-white/40">Stop-loss %</span>
+                <span className="text-[11px] text-ink-muted">Stop-loss %</span>
                 <input
                   type="number"
                   value={customStopLoss}
@@ -346,7 +345,7 @@ export function Backtest() {
                       e.target.value === "" ? "" : Number(e.target.value)
                     )
                   }
-                  className="w-20 rounded-lg border border-white/10 bg-white/[0.03] px-2 py-1 text-right text-xs tabular-nums text-white/90 outline-none focus:border-emerald-400/40 disabled:cursor-not-allowed"
+                  className="w-20 rounded-lg border border-ink/10 bg-ink/[0.03] px-2 py-1 text-right text-xs tabular-nums text-ink outline-none focus:border-emerald-400/40 disabled:cursor-not-allowed"
                 />
               </div>
             </div>
@@ -369,7 +368,7 @@ export function Backtest() {
           </Button>
         )}
         {error && (
-          <span className="text-xs text-red-400">{error.message}</span>
+          <span className="text-xs text-negative">{error.message}</span>
         )}
       </div>
 
@@ -443,7 +442,7 @@ export function Backtest() {
           {winner && (
             <Card
               hover={false}
-              className="border-emerald-400/25 shadow-[0_0_40px_rgba(52,211,153,0.12)]"
+              className="border-emerald-400/25 shadow-card"
             >
               <CardBody className="flex flex-wrap items-center justify-between gap-4">
                 <div className="flex items-center gap-3">
@@ -459,7 +458,7 @@ export function Backtest() {
                       {winner.preset.label} wins
                       {selectedPool ? ` on ${selectedPool.pair}` : ""}
                     </div>
-                    <div className="text-xs text-white/40">
+                    <div className="text-xs text-ink-muted">
                       Best net performance vs HODL over the selected window
                     </div>
                   </div>
@@ -468,8 +467,8 @@ export function Backtest() {
                   className={cn(
                     "text-2xl font-semibold tabular-nums",
                     winner.result.netVsHodlPct >= 0
-                      ? "text-emerald-300"
-                      : "text-red-300"
+                      ? "text-[#22892F]"
+                      : "text-negative"
                   )}
                 >
                   {formatPct(winner.result.netVsHodlPct)}
@@ -484,7 +483,7 @@ export function Backtest() {
               <CardTitle className="mb-4">Results</CardTitle>
               <table className="w-full min-w-[640px] text-left text-sm">
                 <thead>
-                  <tr className="border-b border-white/5 text-xs text-white/40">
+                  <tr className="border-b border-ink/10 text-xs text-ink-muted">
                     <th className="pb-3 font-medium">Preset</th>
                     <th className="pb-3 font-medium">Net vs HODL</th>
                     <th className="pb-3 font-medium">Final value</th>
@@ -498,7 +497,7 @@ export function Backtest() {
                   {rows.map(({ preset, result }) => (
                     <tr
                       key={preset.name}
-                      className="border-b border-white/5 last:border-0"
+                      className="border-b border-ink/10 last:border-0"
                     >
                       <td className="py-3">
                         <span className="flex items-center gap-2">
@@ -513,25 +512,25 @@ export function Backtest() {
                         className={cn(
                           "py-3 tabular-nums",
                           result.netVsHodlPct >= 0
-                            ? "text-emerald-300"
-                            : "text-red-300"
+                            ? "text-[#22892F]"
+                            : "text-negative"
                         )}
                       >
                         {formatPct(result.netVsHodlPct)}
                       </td>
-                      <td className="py-3 tabular-nums text-white/80">
+                      <td className="py-3 tabular-nums text-ink-soft">
                         {formatUSD(result.finalValueUsd, false)}
                       </td>
-                      <td className="py-3 tabular-nums text-white/80">
+                      <td className="py-3 tabular-nums text-ink-soft">
                         {formatUSD(result.feesEarnedUsd, false)}
                       </td>
-                      <td className="py-3 tabular-nums text-white/60">
+                      <td className="py-3 tabular-nums text-ink-muted">
                         {formatUSD(result.ilUsd, false)}
                       </td>
-                      <td className="py-3 tabular-nums text-white/60">
+                      <td className="py-3 tabular-nums text-ink-muted">
                         {result.rebalanceCount}
                       </td>
-                      <td className="py-3 tabular-nums text-white/60">
+                      <td className="py-3 tabular-nums text-ink-muted">
                         {formatUSD(result.gasSpentUsd, false)}
                       </td>
                     </tr>
@@ -578,14 +577,14 @@ function MiniField({
 }) {
   return (
     <div className="flex items-center justify-between gap-2">
-      <span className="text-[11px] text-white/40">{label}</span>
+      <span className="text-[11px] text-ink-muted">{label}</span>
       <input
         type="number"
         value={value}
         step={step}
         disabled={disabled}
         onChange={(e) => onChange(Number(e.target.value))}
-        className="w-20 rounded-lg border border-white/10 bg-white/[0.03] px-2 py-1 text-right text-xs tabular-nums text-white/90 outline-none focus:border-emerald-400/40 disabled:cursor-not-allowed"
+        className="w-20 rounded-lg border border-ink/10 bg-ink/[0.03] px-2 py-1 text-right text-xs tabular-nums text-ink outline-none focus:border-emerald-400/40 disabled:cursor-not-allowed"
       />
     </div>
   );
@@ -601,16 +600,16 @@ function Stat({
   highlight?: boolean;
 }) {
   return (
-    <div className="rounded-xl border border-white/5 bg-white/[0.02] px-4 py-3">
-      <div className="text-[11px] text-white/35">{label}</div>
+    <div className="rounded-xl border border-ink/10 bg-ink/[0.03] px-4 py-3">
+      <div className="text-[11px] text-ink-faint">{label}</div>
       <div
         className={cn(
           "mt-1 text-sm font-semibold tabular-nums",
           highlight === undefined
-            ? "text-white/85"
+            ? "text-ink/85"
             : highlight
-              ? "text-emerald-300"
-              : "text-red-300"
+              ? "text-[#22892F]"
+              : "text-negative"
         )}
       >
         {value}

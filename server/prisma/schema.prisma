@@ -22,6 +22,7 @@ model Position {
   tokenId    String
   owner      String
   pool       String
+  pair       String   // v1.9: token pair symbol (e.g., "ETH/USDC")
   token0     String
   token1     String
   feeTier    Int
@@ -128,6 +129,9 @@ enum ActionStatus {
   EXECUTED
   FAILED
   DRY_RUN
+  PENDING_APPROVAL  // v1.9: awaiting human approval for mainnet trading
+  APPROVED          // v1.9: approved for execution
+  REJECTED          // v1.9: rejected by policy or human
 }
 
 // ---- v1.3: Telegram notification preferences ----
@@ -192,4 +196,54 @@ model Backtest {
   @@index([owner, createdAt])
   @@index([chainId, poolId])
   @@map("backtests")
+}
+
+// ---- v1.9: Mainnet trading approval policies ----
+
+model MainnetPolicySetting {
+  id                     String   @id @default(cuid())
+  chainId                Int      @unique
+  enabled                Boolean  @default(false)
+  requireHumanApproval   Boolean  @default(true)
+  maxGasUsd              Float    @default(50)
+  maxDailyVolumeUsd      Float    @default(10000)
+  allowedActions         String   @default("COMPOUND,REBALANCE")  // CSV
+  requireLiquidityCheck  Boolean  @default(true)
+  requireRangeSanity     Boolean  @default(true)
+  pauseOnHighFailureRate Boolean  @default(true)
+  failureRateThreshold   Float    @default(30)  // percentage
+  updatedAt              DateTime @updatedAt
+
+  @@map("mainnet_policy_settings")
+}
+
+// ---- v1.9: Emergency stop circuit breaker ----
+
+model EmergencyStop {
+  id        String   @id @default("singleton")
+  active    Boolean  @default(false)
+  reason    String?
+  stoppedAt DateTime?
+  stoppedBy String?
+  updatedAt DateTime @updatedAt
+
+  @@map("emergency_stop")
+}
+
+// ---- v1.9: Engine health metrics ----
+
+model EngineHealth {
+  id          String   @id @default(cuid())
+  chainId     Int
+  runId       String
+  success     Boolean
+  durationMs  Int
+  actionCount Int
+  errorCount  Int
+  gasUsd      Float?
+  timestamp   DateTime @default(now())
+
+  @@index([chainId, timestamp])
+  @@index([runId])
+  @@map("engine_health")
 }

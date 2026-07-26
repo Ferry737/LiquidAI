@@ -59,23 +59,23 @@ export function EngineToggle({ engineState, onToggle }: EngineToggleProps) {
         className={cn(
           "group relative inline-flex items-center gap-2.5 rounded-full border px-4 py-2 text-sm font-medium transition-all duration-300",
           dryRun
-            ? "border-cyan-400/30 bg-cyan-400/10 text-cyan-300 shadow-[0_0_24px_rgba(34,211,238,0.25)]"
-            : "border-emerald-400/30 bg-emerald-400/10 text-emerald-300 shadow-[0_0_24px_rgba(52,211,153,0.25)]",
+            ? "border-brand-500/30 bg-brand-500/10 text-brand-500 shadow-card"
+            : "border-[#22892F]/30 bg-[#22892F]/10 text-[#22892F] shadow-card",
           "hover:brightness-110 disabled:opacity-40"
         )}
       >
         <span
           className={cn(
             "relative flex h-4 w-7 items-center rounded-full transition-colors duration-300",
-            dryRun ? "bg-cyan-400/30" : "bg-emerald-400/30"
+            dryRun ? "bg-brand-500/25" : "bg-[#22892F]/25"
           )}
         >
           <span
             className={cn(
               "absolute h-3 w-3 rounded-full transition-all duration-300",
               dryRun
-                ? "left-0.5 bg-cyan-400 shadow-[0_0_10px_rgba(34,211,238,0.8)]"
-                : "right-0.5 translate-x-0 bg-emerald-400 shadow-[0_0_10px_rgba(52,211,153,0.8)]"
+                ? "left-0.5 bg-brand-500 shadow-card"
+                : "right-0.5 translate-x-0 bg-[#22892F] shadow-card"
             )}
           />
         </span>
@@ -95,14 +95,14 @@ export function EngineToggle({ engineState, onToggle }: EngineToggleProps) {
           >
             <CardBody className="space-y-4 p-6">
               <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-400/10 text-xl">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#B26A00]/10 text-xl">
                   ⚠️
                 </div>
                 <h3 className="text-lg font-semibold">
                   Switch to Live Mode?
                 </h3>
               </div>
-              <p className="text-sm leading-relaxed text-white/60">
+              <p className="text-sm leading-relaxed text-ink-muted">
                 The engine will start executing real transactions on Sepolia.
                 Make sure your worker wallet has testnet ETH and your strategy
                 configs are correct.

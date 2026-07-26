@@ -29,11 +29,11 @@ export function PositionCard({ p }: { p: PositionView }) {
             <div>
               <div className="flex items-center gap-2">
                 <span className="font-medium">{p.pair}</span>
-                <span className="rounded-md bg-white/[0.05] px-1.5 py-0.5 text-xs text-white/50">
+                <span className="rounded-md bg-ink/[0.04] px-1.5 py-0.5 text-xs text-ink-muted">
                   {feeLabel(p.feeTier)}
                 </span>
               </div>
-              <div className="mt-0.5 text-xs text-white/40">
+              <div className="mt-0.5 text-xs text-ink-muted">
                 #{p.tokenId}
               </div>
             </div>
@@ -41,14 +41,14 @@ export function PositionCard({ p }: { p: PositionView }) {
           </div>
 
           <div className="space-y-2">
-            <div className="relative h-2 w-full overflow-hidden rounded-full bg-white/[0.05]">
-              <div className="absolute inset-y-0 left-[8%] right-[8%] rounded-full bg-gradient-to-r from-emerald-400/40 to-cyan-400/40" />
+            <div className="relative h-2 w-full overflow-hidden rounded-full bg-ink/[0.04]">
+              <div className="absolute inset-y-0 left-[8%] right-[8%] rounded-full bg-gradient-to-r from-brand-500/40 to-brand-400/40" />
               <div
-                className="absolute top-1/2 h-3 w-3 -translate-y-1/2 rounded-full bg-white shadow-[0_0_10px_rgba(255,255,255,0.8)]"
+                className="absolute top-1/2 h-3 w-3 -translate-y-1/2 rounded-full bg-white shadow-card"
                 style={{ left: `calc(${clamped}% - 6px)` }}
               />
             </div>
-            <div className="flex justify-between text-xs tabular-nums text-white/40">
+            <div className="flex justify-between text-xs tabular-nums text-ink-muted">
               <span>{formatNum(p.lowerPrice, p.lowerPrice < 10 ? 4 : 0)}</span>
               <span>{formatNum(p.upperPrice, p.upperPrice < 10 ? 4 : 0)}</span>
             </div>
@@ -59,9 +59,9 @@ export function PositionCard({ p }: { p: PositionView }) {
             <Metric
               label="Unclaimed fees"
               value={formatUSD(p.unclaimedFeesUSD)}
-              accent="emerald"
+              accent="green"
             />
-            <Metric label="Fee APR" value={formatPct(p.feeApr)} accent="cyan" />
+            <Metric label="Fee APR" value={formatPct(p.feeApr)} accent="blue" />
             <Metric
               label="Impermanent loss"
               value={formatPct(p.ilPct)}
@@ -70,7 +70,7 @@ export function PositionCard({ p }: { p: PositionView }) {
           </div>
 
           {!p.inRange && (
-            <div className="rounded-lg border border-amber-400/20 bg-amber-400/5 px-3 py-2 text-xs text-amber-300">
+            <div className="rounded-lg border border-[#B26A00]/30 bg-[#B26A00]/8 px-3 py-2 text-xs text-[#B26A00]">
               Out of range {formatNum(p.outOfRangeHours, 1)}h · AI will
               rebalance past 6h
             </div>
@@ -104,19 +104,19 @@ function Metric({
 }: {
   label: string;
   value: string;
-  accent?: "white" | "emerald" | "cyan" | "amber";
+  accent?: "white" | "green" | "blue" | "amber";
 }) {
   const color =
-    accent === "emerald"
-      ? "text-emerald-300"
-      : accent === "cyan"
-        ? "text-cyan-300"
+    accent === "green"
+      ? "text-[#22892F]"
+      : accent === "blue"
+        ? "text-brand-500"
         : accent === "amber"
-          ? "text-amber-300"
-          : "text-white/90";
+          ? "text-[#B26A00]"
+          : "text-ink";
   return (
-    <div className="rounded-lg border border-white/5 bg-white/[0.02] px-3 py-2">
-      <div className="text-xs text-white/40">{label}</div>
+    <div className="rounded-lg border border-ink/10 bg-ink/[0.03] px-3 py-2">
+      <div className="text-xs text-ink-muted">{label}</div>
       <div className={`tabular-nums ${color}`}>{value}</div>
     </div>
   );

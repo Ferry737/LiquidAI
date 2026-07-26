@@ -1,4 +1,4 @@
-// src/components/ui/Button.tsx
+// src/components/ui/Button.tsx — SaaSable light (v1.9)
 "use client";
 
 import { cn } from "@/lib/utils";
@@ -14,15 +14,15 @@ export function Button({
   return (
     <button
       className={cn(
-        "inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-medium",
+        "inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold",
         "transition-all duration-200 disabled:cursor-not-allowed disabled:opacity-40",
-        "focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/50",
+        "focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/50",
         variant === "primary" &&
-          "bg-gradient-to-r from-emerald-400 to-cyan-400 text-base-900 hover:shadow-[0_8px_32px_rgba(52,211,153,0.35)] hover:brightness-110",
+          "bg-brand-500 text-white shadow-[0_4px_14px_rgba(96,107,223,0.32)] hover:bg-brand-600 hover:shadow-[0_6px_20px_rgba(96,107,223,0.42)]",
         variant === "ghost" &&
-          "border border-white/10 bg-white/[0.02] text-white/80 hover:bg-white/[0.06] hover:text-white",
+          "border border-ink/10 bg-white text-ink-soft hover:bg-surface-page hover:text-ink hover:border-ink/20",
         variant === "danger" &&
-          "border border-red-400/30 bg-red-400/10 text-red-300 hover:bg-red-400/20",
+          "border border-negative/30 bg-negative/10 text-negative hover:bg-negative/15",
         className
       )}
       {...props}

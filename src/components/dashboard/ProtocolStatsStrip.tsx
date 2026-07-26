@@ -15,7 +15,7 @@ interface ItemProps {
 function StripItem({ label, value, accent }: ItemProps) {
   return (
     <div className="flex items-baseline gap-2.5 px-5 py-3 first:pl-6 last:pr-6">
-      <span className="text-[11px] uppercase tracking-wider text-white/35">
+      <span className="text-[11px] uppercase tracking-wider text-ink-faint">
         {label}
       </span>
       <span className={`text-sm font-semibold ${accent}`}>
@@ -34,24 +34,24 @@ export function ProtocolStatsStrip() {
   if (!data) return null;
 
   return (
-    <div className="flex flex-wrap items-center divide-x divide-white/5 rounded-2xl border border-white/[0.06] bg-white/[0.03] backdrop-blur-xl animate-fade-up">
+    <div className="flex flex-wrap items-center divide-x divide-ink/10 rounded-2xl border border-ink/10 bg-ink/[0.03] backdrop-blur-xl animate-fade-up">
       <StripItem
         label="Uniswap v3 TVL"
         value={data.protocolTvlUSD}
-        accent="text-white"
+        accent="text-ink"
       />
       <StripItem
         label="Ethereum TVL"
         value={data.chainTvlUSD}
-        accent="text-cyan-300"
+        accent="text-brand-500"
       />
       <StripItem
         label="24h volume"
         value={data.volume24hUSD}
-        accent="text-emerald-300"
+        accent="text-[#22892F]"
       />
-      <div className="ml-auto hidden items-center gap-1.5 pr-6 text-[11px] text-white/25 md:flex">
-        <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-400/80" />
+      <div className="ml-auto hidden items-center gap-1.5 pr-6 text-[11px] text-ink-faint md:flex">
+        <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-[#22892F]/80" />
         live · DefiLlama
       </div>
     </div>
