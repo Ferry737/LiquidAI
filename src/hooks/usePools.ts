@@ -1,19 +1,30 @@
 // src/hooks/usePools.ts
-// v2.1: Fetches pools directly from the Uniswap V3 subgraph (client-side),
-// with deterministic demo fallback. No backend dependency.
+// v2.2: Fetches pools from the DeFiLlama Yields integration via Next.js API
+// routes. Supports composable multi-dimensional filtering.
 
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { fetchTopPools, type RankedPool } from "@/lib/subgraph";
-import { useChain } from "@/components/chain/ChainProvider";
+import {
+  fetchDefiLlamaPools,
+  fetchPoolFilters,
+  type PoolFilters,
+} from "@/lib/defillama";
 
-export function usePools() {
-  const { chain } = useChain();
-  return useQuery<RankedPool[]>({
-    queryKey: ["top-pools", chain],
-    queryFn: () => fetchTopPools(25),
+export function usePools(filters: PoolFilters = {}) {
+  return useQuery({
+    queryKey: ["pools-defillama", filters],
+    queryFn: () => fetchDefiLlamaPools(filters),
     staleTime: 60_000,
-    refetchInterval: 120_000,
+    refetchInterval: 300_000, // 5 min
+    placeholderData: (prev) => prev, // keep previous data during refetch
+  });
+}
+
+export function usePoolFilters() {
+  return useQuery({
+    queryKey: ["pool-filter-options"],
+    queryFn: fetchPoolFilters,
+    staleTime: 5 * 60_000,
   });
 }

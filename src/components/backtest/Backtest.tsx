@@ -48,7 +48,8 @@ function toDateInput(ms: number): string {
 }
 
 export function Backtest() {
-  const { data: pools, isLoading: poolsLoading } = usePools();
+  const { data: poolsData, isLoading: poolsLoading } = usePools();
+  const pools = poolsData?.pools;
 
   const [poolId, setPoolId] = useState("");
   const [from, setFrom] = useState(() => toDateInput(Date.now() - 30 * DAY_MS));
@@ -171,7 +172,7 @@ export function Backtest() {
                   <option value="">Select a pool…</option>
                   {pools?.map((p) => (
                     <option key={p.id} value={p.id}>
-                      {p.pair} · {(p.feeTier / 10_000).toFixed(2)}% · {formatUSD(p.tvlUSD)} TVL
+                      {p.pair} · {p.chain} · {formatUSD(p.tvlUsd)} TVL
                     </option>
                   ))}
                 </select>
