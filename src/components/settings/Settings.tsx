@@ -73,7 +73,7 @@ export function Settings() {
         </div>
         <div className="flex items-center gap-3">
           {saved && (
-            <span className="text-sm text-[#22892F]">✓ Saved</span>
+            <span className="text-sm text-[#1F8A4C]">✓ Saved</span>
           )}
           {errors.length > 0 && (
             <span className="text-sm text-negative">

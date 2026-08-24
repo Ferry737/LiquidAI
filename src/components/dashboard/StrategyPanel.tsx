@@ -30,14 +30,14 @@ export function StrategyPanel({ positions }: { positions: PositionView[] }) {
             className={
               "inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs " +
               (live
-                ? "bg-[#22892F]/10 text-[#22892F]"
+                ? "bg-[#1F8A4C]/10 text-[#1F8A4C]"
                 : "bg-negative/10 text-negative")
             }
           >
             <span
               className={
                 "h-1.5 w-1.5 rounded-full " +
-                (live ? "bg-[#22892F] animate-pulse" : "bg-red-400")
+                (live ? "bg-[#1F8A4C] animate-pulse" : "bg-red-400")
               }
             />
             {live ? "Active" : "Kill switch on"}
@@ -73,7 +73,7 @@ export function StrategyPanel({ positions }: { positions: PositionView[] }) {
               </p>
             )}
             {r.key === "compound" && (
-              <p className="mt-2 text-xs tabular-nums text-[#22892F]">
+              <p className="mt-2 text-xs tabular-nums text-[#1F8A4C]">
                 {compoundQueue.length} eligible ·{" "}
                 {formatUSD(
                   compoundQueue.reduce((s, p) => s + p.unclaimedFeesUSD, 0)

@@ -490,7 +490,7 @@ function ActionLogTimeline({
 function ActionRow({ action }: { action: StrategyActionDto }) {
   const color =
     action.status === "EXECUTED"
-      ? "text-[#22892F] bg-[#22892F]/10"
+      ? "text-[#1F8A4C] bg-[#1F8A4C]/10"
       : action.status === "FAILED"
         ? "text-negative bg-negative/10"
         : "text-ink-muted bg-ink/[0.04]";

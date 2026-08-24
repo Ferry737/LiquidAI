@@ -48,7 +48,7 @@ export function HftManager() {
           <div className="text-xs uppercase tracking-wider text-ink-muted">
             Avg APR Achieved
           </div>
-          <div className="mt-1 text-2xl font-bold tabular-nums text-[#22892F]">
+          <div className="mt-1 text-2xl font-bold tabular-nums text-[#1F8A4C]">
             {state.avgApr > 0 ? formatPct(state.avgApr) : "—"}
           </div>
           <div className="text-xs text-ink-faint">across rebalances</div>
@@ -63,7 +63,7 @@ export function HftManager() {
               : "—"}
           </div>
           <div className="text-xs text-ink-faint">
-            <span className="inline-block h-1.5 w-1.5 animate-pulse rounded-full bg-[#22892F]" /> active
+            <span className="inline-block h-1.5 w-1.5 animate-pulse rounded-full bg-[#1F8A4C]" /> active
           </div>
         </Card>
       </div>
@@ -98,7 +98,7 @@ export function HftManager() {
                           #{p.tokenId}
                         </span>
                         {p.inRange ? (
-                          <span className="rounded-full bg-[#22892F]/10 px-2 py-0.5 text-xs text-[#22892F]">
+                          <span className="rounded-full bg-[#1F8A4C]/10 px-2 py-0.5 text-xs text-[#1F8A4C]">
                             in range
                           </span>
                         ) : (
@@ -200,7 +200,7 @@ export function HftManager() {
                 <div className="col-span-2 text-right tabular-nums text-brand-500">
                   {formatNum(rec.newLower)}–{formatNum(rec.newUpper)}
                 </div>
-                <div className="col-span-1 text-right tabular-nums text-[#22892F]">
+                <div className="col-span-1 text-right tabular-nums text-[#1F8A4C]">
                   {formatPct(rec.aprAchieved)}
                 </div>
                 <div className="col-span-2 text-right text-xs text-ink-muted">

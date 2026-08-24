@@ -265,7 +265,7 @@ export function CreatePosition({
                 </span>
               </div>
               {livePrice && (
-                <span className="text-[10px] text-[#22892F]">● live (CoinGecko)</span>
+                <span className="text-[10px] text-[#1F8A4C]">● live (CoinGecko)</span>
               )}
             </div>
 

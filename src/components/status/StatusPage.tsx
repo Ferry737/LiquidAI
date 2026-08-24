@@ -15,13 +15,13 @@ import { useState } from "react";
 import type { DependencyCheck } from "@/hooks/useStatus";
 
 const PILL_STYLES: Record<string, string> = {
-  ok: "bg-[#22892F]/10 text-[#22892F] border-[#22892F]/30",
+  ok: "bg-[#1F8A4C]/10 text-[#1F8A4C] border-[#1F8A4C]/30",
   degraded: "bg-[#B26A00]/10 text-[#B26A00] border-[#B26A00]/30",
   down: "bg-negative/10 text-negative border-negative/30",
 };
 
 const DOT_STYLES: Record<string, string> = {
-  ok: "bg-[#22892F]",
+  ok: "bg-[#1F8A4C]",
   degraded: "bg-amber-400",
   down: "bg-red-400",
 };
@@ -72,7 +72,7 @@ export function StatusPage() {
               {isLoading ? (
                 <Skeleton className="h-6 w-24" />
               ) : engineOverride.running ? (
-                <span className="text-[#22892F]">Running</span>
+                <span className="text-[#1F8A4C]">Running</span>
               ) : (
                 <span className="text-negative">Stopped</span>
               )}
@@ -88,7 +88,7 @@ export function StatusPage() {
               ) : engineOverride.dryRun ? (
                 <span className="text-[#B26A00]">Dry run</span>
               ) : (
-                <span className="text-[#22892F]">Live</span>
+                <span className="text-[#1F8A4C]">Live</span>
               )}
             </div>
           </div>
@@ -163,7 +163,7 @@ export function StatusPage() {
                 href={`https://${c.explorer}`}
                 target="_blank"
                 rel="noreferrer"
-                className="inline-block text-[#22892F]/80 hover:text-[#22892F]"
+                className="inline-block text-[#1F8A4C]/80 hover:text-[#1F8A4C]"
               >
                 Explorer ↗
               </a>

@@ -87,8 +87,8 @@ export function Dashboard() {
         <div className="flex items-center gap-3">
           {/* Live indicator */}
           {sseState.connected && (
-            <span className="flex items-center gap-1.5 text-xs text-[#22892F]">
-              <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-[#22892F]" />
+            <span className="flex items-center gap-1.5 text-xs text-[#1F8A4C]">
+              <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-[#1F8A4C]" />
               live
             </span>
           )}

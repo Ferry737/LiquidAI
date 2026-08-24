@@ -102,14 +102,14 @@ export function ChainSwitcher() {
                 className={cn(
                   "flex w-full items-center gap-3 px-4 py-3 text-left text-sm transition-colors",
                   active
-                    ? "bg-[#22892F]/10 text-ink"
+                    ? "bg-[#1F8A4C]/10 text-ink"
                     : "text-ink-muted hover:bg-ink/[0.04] hover:text-ink"
                 )}
               >
                 <ChainIcon slug={c.slug} active={active} />
                 <span className="flex-1">{c.name}</span>
                 {active && (
-                  <span className="h-1.5 w-1.5 rounded-full bg-[#22892F] shadow-card" />
+                  <span className="h-1.5 w-1.5 rounded-full bg-[#1F8A4C] shadow-card" />
                 )}
               </button>
             );

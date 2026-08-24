@@ -40,7 +40,7 @@ export function WalletBalanceCard({ data }: { data: BalanceSummary }) {
                 {native.symbol}
               </span>
               {native.usdValue !== null && (
-                <span className="text-xs text-[#22892F]">
+                <span className="text-xs text-[#1F8A4C]">
                   {formatUSD(native.usdValue)}
                 </span>
               )}
@@ -61,7 +61,7 @@ export function WalletBalanceCard({ data }: { data: BalanceSummary }) {
                   {token.symbol}
                 </span>
                 {token.usdValue !== null && (
-                  <span className="text-xs text-[#22892F]">
+                  <span className="text-xs text-[#1F8A4C]">
                     {formatUSD(token.usdValue)}
                   </span>
                 )}

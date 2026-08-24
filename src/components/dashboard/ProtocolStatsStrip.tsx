@@ -48,10 +48,10 @@ export function ProtocolStatsStrip() {
       <StripItem
         label="24h volume"
         value={data.volume24hUSD}
-        accent="text-[#22892F]"
+        accent="text-[#1F8A4C]"
       />
       <div className="ml-auto hidden items-center gap-1.5 pr-6 text-[11px] text-ink-faint md:flex">
-        <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-[#22892F]/80" />
+        <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-[#1F8A4C]/80" />
         live · DefiLlama
       </div>
     </div>

@@ -82,8 +82,8 @@ export function Analytics() {
               <AreaChart data={data}>
                 <defs>
                   <linearGradient id="pnl" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="#606BDF" stopOpacity={0.4} />
-                    <stop offset="100%" stopColor="#606BDF" stopOpacity={0} />
+                    <stop offset="0%" stopColor="#16A38B" stopOpacity={0.4} />
+                    <stop offset="100%" stopColor="#16A38B" stopOpacity={0} />
                   </linearGradient>
                 </defs>
                 <CartesianGrid stroke="rgba(27,27,31,0.06)" vertical={false} />
@@ -93,7 +93,7 @@ export function Analytics() {
                 <Area
                   type="monotone"
                   dataKey="pnl"
-                  stroke="#606BDF"
+                  stroke="#16A38B"
                   strokeWidth={2}
                   fill="url(#pnl)"
                 />
@@ -119,7 +119,7 @@ export function Analytics() {
                   <Line
                     type="monotone"
                     dataKey="feeApr"
-                    stroke="#606BDF"
+                    stroke="#16A38B"
                     strokeWidth={2}
                     dot={false}
                   />

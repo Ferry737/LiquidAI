@@ -135,8 +135,8 @@ export function Landing() {
         <div className="mt-12 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {FEATURES.map((f, i) => (
             <Reveal key={f.title} delay={(i % 3) * 0.08}>
-              <div className="surface group h-full rounded-2xl p-6 transition-all duration-300 hover:-translate-y-1 hover:border-brand-100 hover:shadow-card-hover">
-                <div className="mb-4 flex h-11 w-11 items-center justify-center rounded-xl bg-brand-50 text-xl">
+              <div className="surface group h-full rounded-2xl p-6 transition-all duration-200 hover:border-surface-muted hover:shadow-card-hover">
+                <div className="mb-4 flex h-11 w-11 items-center justify-center rounded-xl bg-surface-raised border border-surface-muted text-xl">
                   {f.icon}
                 </div>
                 <h3 className="text-base font-semibold text-ink">{f.title}</h3>
@@ -174,7 +174,7 @@ export function Landing() {
       {/* CTA */}
       <section className="mx-auto mt-24 max-w-5xl">
         <Reveal>
-          <div className="relative overflow-hidden rounded-3xl border border-brand-100 bg-gradient-to-br from-brand-500/10 via-brand-50 to-brand-400/10 p-10 text-center sm:p-16">
+          <div className="relative overflow-hidden rounded-3xl border border-surface-muted bg-surface-raised p-10 text-center sm:p-16">
             <div className="relative">
               <h2 className="text-3xl font-bold tracking-tight text-ink sm:text-4xl">
                 Put your liquidity to work
@@ -254,7 +254,7 @@ function HeroMockup() {
         <div className="mb-5 flex items-center gap-2">
           <span className="h-3 w-3 rounded-full bg-negative/70" />
           <span className="h-3 w-3 rounded-full bg-[#B26A00]/70" />
-          <span className="h-3 w-3 rounded-full bg-[#22892F]/70" />
+          <span className="h-3 w-3 rounded-full bg-[#1F8A4C]/70" />
           <span className="ml-3 text-xs text-ink-faint">app.liquidai · dashboard</span>
         </div>
         {/* header row */}
@@ -263,54 +263,48 @@ function HeroMockup() {
             <div className="text-xs font-semibold uppercase tracking-wider text-ink-faint">
               Total value managed
             </div>
-            <div className="text-3xl font-semibold text-ink">$128,420</div>
+            <div className="text-3xl font-semibold text-ink tabular">—</div>
           </div>
-          <div className="flex items-center gap-1.5 rounded-full bg-[#22892F]/10 px-3 py-1 text-xs font-medium text-[#22892F]">
-            <span className="h-1.5 w-1.5 rounded-full bg-[#22892F]" />
+          <div className="flex items-center gap-1.5 rounded-full bg-positive/10 px-3 py-1 text-xs font-medium text-positive">
+            <span className="h-1.5 w-1.5 rounded-full bg-positive" />
             engine live
           </div>
         </div>
         {/* stat chips */}
         <div className="mb-5 grid grid-cols-3 gap-3">
           {[
-            { l: "Unclaimed fees", v: "$4,210", c: "text-[#22892F]" },
-            { l: "Avg fee APR", v: "31.4%", c: "text-brand-500" },
-            { l: "In range", v: "3 / 3", c: "text-ink" },
+            { l: "Unclaimed fees", v: "—", c: "text-positive" },
+            { l: "Avg fee APR", v: "—", c: "text-brand-500" },
+            { l: "In range", v: "—", c: "text-ink" },
           ].map((s) => (
             <div
               key={s.l}
-              className="rounded-xl border border-brand-100 bg-brand-50/60 p-3"
+              className="rounded-xl border border-surface-muted bg-surface-raised p-3"
             >
               <div className="text-[10px] font-semibold uppercase tracking-wider text-ink-faint">
                 {s.l}
               </div>
-              <div className={`mt-1 text-lg font-semibold ${s.c}`}>{s.v}</div>
+              <div className={`mt-1 text-lg font-semibold tabular ${s.c}`}>{s.v}</div>
             </div>
           ))}
         </div>
-        {/* fake position rows */}
+        {/* illustrative position rows (preview only — no real data) */}
         <div className="space-y-2">
           {[
-            { p: "ETH / USDC", f: "0.3%", r: "in range", c: "text-[#22892F]", w: "62%" },
-            { p: "WBTC / ETH", f: "0.3%", r: "in range", c: "text-[#22892F]", w: "48%" },
-            { p: "DAI / USDC", f: "0.05%", r: "in range", c: "text-[#22892F]", w: "71%" },
+            { p: "ETH / USDC", f: "0.3%" },
+            { p: "WBTC / ETH", f: "0.3%" },
+            { p: "DAI / USDC", f: "0.05%" },
           ].map((row) => (
             <div
               key={row.p}
-              className="flex items-center gap-3 rounded-xl border border-brand-100 bg-white px-3 py-2.5"
+              className="flex items-center gap-3 rounded-xl border border-surface-muted bg-white px-3 py-2.5"
             >
-              <div className="h-7 w-7 rounded-lg bg-gradient-to-br from-brand-500/30 to-brand-400/30" />
+              <div className="h-7 w-7 rounded-lg bg-surface-raised border border-surface-muted" />
               <div className="flex-1">
                 <div className="text-sm font-medium text-ink">{row.p}</div>
                 <div className="text-[11px] text-ink-faint">{row.f} fee tier</div>
               </div>
-              <div className="relative h-1.5 w-24 overflow-hidden rounded-full bg-ink/10">
-                <div
-                  className="absolute inset-y-0 left-0 rounded-full bg-gradient-to-r from-brand-500 to-brand-400"
-                  style={{ width: row.w }}
-                />
-              </div>
-              <span className={`text-xs font-medium ${row.c}`}>{row.r}</span>
+              <span className="text-xs font-medium text-ink-faint">preview</span>
             </div>
           ))}
         </div>

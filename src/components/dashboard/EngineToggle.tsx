@@ -60,14 +60,14 @@ export function EngineToggle({ engineState, onToggle }: EngineToggleProps) {
           "group relative inline-flex items-center gap-2.5 rounded-full border px-4 py-2 text-sm font-medium transition-all duration-300",
           dryRun
             ? "border-brand-500/30 bg-brand-500/10 text-brand-500 shadow-card"
-            : "border-[#22892F]/30 bg-[#22892F]/10 text-[#22892F] shadow-card",
+            : "border-[#1F8A4C]/30 bg-[#1F8A4C]/10 text-[#1F8A4C] shadow-card",
           "hover:brightness-110 disabled:opacity-40"
         )}
       >
         <span
           className={cn(
             "relative flex h-4 w-7 items-center rounded-full transition-colors duration-300",
-            dryRun ? "bg-brand-500/25" : "bg-[#22892F]/25"
+            dryRun ? "bg-brand-500/25" : "bg-[#1F8A4C]/25"
           )}
         >
           <span
@@ -75,7 +75,7 @@ export function EngineToggle({ engineState, onToggle }: EngineToggleProps) {
               "absolute h-3 w-3 rounded-full transition-all duration-300",
               dryRun
                 ? "left-0.5 bg-brand-500 shadow-card"
-                : "right-0.5 translate-x-0 bg-[#22892F] shadow-card"
+                : "right-0.5 translate-x-0 bg-[#1F8A4C] shadow-card"
             )}
           />
         </span>

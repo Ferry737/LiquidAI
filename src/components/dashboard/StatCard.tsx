@@ -23,7 +23,7 @@ export function StatCard({
 }: Props) {
   const color =
     accent === "green"
-      ? "text-[#22892F]"
+      ? "text-[#1F8A4C]"
       : accent === "blue"
       ? "text-brand-500"
       : accent === "brand"

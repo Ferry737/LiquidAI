@@ -47,7 +47,7 @@ export function EngineFeed({
         <div className="flex items-center justify-between">
           <CardTitle>Engine Feed</CardTitle>
           <span className="flex items-center gap-1.5 text-xs text-ink-muted">
-            <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-[#22892F]" />
+            <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-[#1F8A4C]" />
             live
           </span>
         </div>
@@ -70,7 +70,7 @@ export function EngineFeed({
 
 function FeedRow({ item }: { item: FeedItem }) {
   const statusConfig = {
-    EXECUTED: { color: "text-[#22892F]", dot: "bg-[#22892F]", glow: "shadow-card" },
+    EXECUTED: { color: "text-[#1F8A4C]", dot: "bg-[#1F8A4C]", glow: "shadow-card" },
     FAILED: { color: "text-negative", dot: "bg-red-400", glow: "shadow-card" },
     DRY_RUN: { color: "text-brand-500", dot: "bg-brand-500", glow: "shadow-card" },
     SKIPPED: { color: "text-ink-faint", dot: "bg-ink-faint", glow: "" },

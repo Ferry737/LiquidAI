@@ -11,7 +11,7 @@ export default function SignUpPage() {
     <section className="mx-auto flex min-h-[65vh] max-w-xl items-center justify-center">
       <div className="w-full rounded-3xl border border-ink/10 bg-ink/[0.03] p-8 text-center shadow-2xl shadow-emerald-950/20 sm:p-10">
         <div className="mx-auto mb-6 h-14 w-14 rounded-2xl bg-gradient-to-br from-brand-500 to-brand-400 shadow-card" />
-        <p className="mb-3 text-xs font-semibold uppercase tracking-[0.3em] text-[#22892F]/80">
+        <p className="mb-3 text-xs font-semibold uppercase tracking-[0.3em] text-[#1F8A4C]/80">
           LiquidAI
         </p>
         <h1 className="text-3xl font-semibold tracking-tight text-ink">
@@ -28,7 +28,7 @@ export default function SignUpPage() {
         </div>
         <p className="mt-7 text-xs text-ink-muted">
           Already have access?{" "}
-          <Link className="text-[#22892F] hover:text-emerald-200" href="/dashboard">
+          <Link className="text-[#1F8A4C] hover:text-emerald-200" href="/dashboard">
             Return to the dashboard
           </Link>
         </p>

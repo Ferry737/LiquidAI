@@ -240,13 +240,13 @@ export function Backtest() {
           </Card>
         ))}
 
-        <Card hover={false} className={cn(customMode && "border-[#22892F]/30")}>
+        <Card hover={false} className={cn(customMode && "border-[#1F8A4C]/30")}>
           <CardBody className="space-y-3">
             <div className="flex items-center justify-between">
               <span className="text-sm font-semibold">Custom</span>
               <button
                 onClick={() => setCustomMode((v) => !v)}
-                className={cn("rounded-lg px-2.5 py-1 text-[11px] font-medium transition", customMode ? "bg-[#22892F]/10 text-[#22892F]" : "bg-ink/[0.04] text-ink-muted hover:text-ink-soft")}
+                className={cn("rounded-lg px-2.5 py-1 text-[11px] font-medium transition", customMode ? "bg-[#1F8A4C]/10 text-[#1F8A4C]" : "bg-ink/[0.04] text-ink-muted hover:text-ink-soft")}
               >
                 {customMode ? "Enabled" : "Enable"}
               </button>
@@ -320,7 +320,7 @@ export function Backtest() {
           </Card>
 
           {winner && (
-            <Card hover={false} className="border-[#22892F]/25 shadow-card">
+            <Card hover={false} className="border-[#1F8A4C]/25 shadow-card">
               <CardBody className="flex flex-wrap items-center justify-between gap-4">
                 <div className="flex items-center gap-3">
                   <span className="h-3 w-3 rounded-full" style={{ backgroundColor: PRESET_COLORS[winner.preset.name], boxShadow: `0 0 14px ${PRESET_COLORS[winner.preset.name]}` }} />
@@ -329,7 +329,7 @@ export function Backtest() {
                     <div className="text-xs text-ink-muted">Best net performance vs HODL</div>
                   </div>
                 </div>
-                <div className={cn("text-2xl font-semibold tabular-nums", winner.result.netVsHodlPct >= 0 ? "text-[#22892F]" : "text-negative")}>
+                <div className={cn("text-2xl font-semibold tabular-nums", winner.result.netVsHodlPct >= 0 ? "text-[#1F8A4C]" : "text-negative")}>
                   {formatPct(winner.result.netVsHodlPct)}
                 </div>
               </CardBody>
@@ -360,7 +360,7 @@ export function Backtest() {
                           {preset.label}
                         </span>
                       </td>
-                      <td className={cn("py-3 tabular-nums", result.netVsHodlPct >= 0 ? "text-[#22892F]" : "text-negative")}>{formatPct(result.netVsHodlPct)}</td>
+                      <td className={cn("py-3 tabular-nums", result.netVsHodlPct >= 0 ? "text-[#1F8A4C]" : "text-negative")}>{formatPct(result.netVsHodlPct)}</td>
                       <td className="py-3 tabular-nums text-ink-soft">{formatUSD(result.finalValueUsd, false)}</td>
                       <td className="py-3 tabular-nums text-ink-soft">{formatUSD(result.feesEarnedUsd, false)}</td>
                       <td className="py-3 tabular-nums text-ink-muted">{formatUSD(result.ilUsd, false)}</td>
@@ -408,7 +408,7 @@ function Stat({ label, value, highlight }: { label: string; value: string; highl
   return (
     <div className="rounded-xl border border-ink/10 bg-ink/[0.03] px-4 py-3">
       <div className="text-[11px] text-ink-faint">{label}</div>
-      <div className={cn("mt-1 text-sm font-semibold tabular-nums", highlight === undefined ? "text-ink/85" : highlight ? "text-[#22892F]" : "text-negative")}>{value}</div>
+      <div className={cn("mt-1 text-sm font-semibold tabular-nums", highlight === undefined ? "text-ink/85" : highlight ? "text-[#1F8A4C]" : "text-negative")}>{value}</div>
     </div>
   );
 }
